@@ -21,12 +21,15 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     uint256 public totalBasisPoints;
     
     // Referral tracking - permanent relationships
-    mapping(address => address) public userReferrer; // user => referrer (permanent)
+    mapping(address => address) public userReferrer; // user => referrer (last-touch)
     mapping(address => mapping(address => uint256)) public referrerEarnings; // referrer => token => amount
     mapping(address => uint256) public userFeeBasisPoints; // user => fee basis points
     
     // Contract state
     ISwapManager public swapManager;
+
+    // Default referrer (used if user has none and no explicit code provided)
+    address public defaultReferrer;
     
     // Events
     event ReferralRegistered(address indexed user, address indexed referrer);
@@ -64,6 +67,12 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         defaultFeeBasisPoints = 10; // 0.1%
         totalBasisPoints = 10000; // 100%
     }
+
+    // NEW: set default referrer (owner only). Zero address disables default.
+    function setDefaultReferrer(address _defaultReferrer) external onlyOwner {
+        require(_defaultReferrer != address(this), "Router cannot be referrer");
+        defaultReferrer = _defaultReferrer;
+    }
     
     /**
      * @dev Execute swap with referral fee
@@ -87,14 +96,24 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
             require(msg.value == 0, "ETH not needed for token swap");
         }
         
-        // Auto-bind referral relationship if user doesn't have one and referrer code is provided
-        if (userReferrer[msg.sender] == address(0) && referrerCode != address(0) && referrerCode != msg.sender) {
-            userReferrer[msg.sender] = referrerCode;
-            emit ReferralRegistered(msg.sender, referrerCode);
+        // Last-touch wins.
+        // If a valid explicit referrer is provided, always (re)bind it.
+        if (referrerCode != address(0) && referrerCode != msg.sender) {
+            if (userReferrer[msg.sender] != referrerCode) {
+                userReferrer[msg.sender] = referrerCode;
+                emit ReferralRegistered(msg.sender, referrerCode);
+            }
         }
         
-        // Get the referrer (either existing or newly bound)
+        // Determine current referrer
         address referrer = userReferrer[msg.sender];
+
+        // If still none, bind and use defaultReferrer (when set and not self)
+        if (referrer == address(0) && defaultReferrer != address(0) && defaultReferrer != msg.sender) {
+            userReferrer[msg.sender] = defaultReferrer;
+            referrer = defaultReferrer;
+            emit ReferralRegistered(msg.sender, defaultReferrer);
+        }
         
         // Calculate and process referral fee
         uint256 feeAmount = 0;

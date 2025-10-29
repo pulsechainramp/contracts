@@ -52,6 +52,7 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint256 deadline; // Deadline for the entire route
         uint256 amountIn; // Amount in for the entire route
         uint256 amountOutMin; // Minimum amount out for the entire route
+        bool isETHOut;
     }
 
     // Struct to hold execution context variables to reduce stack usage
@@ -143,7 +144,9 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         require(route.destination != address(0), "Destination cannot be empty");
         // Transfer final output tokens to user
-        if (route.tokenOut == address(0)) {
+        if (route.tokenOut == address(weth) && route.isETHOut) {
+            weth.withdraw(ctx.totalAmountOut);
+            console.log("weth.withdraw(ctx.totalAmountOut)");
             (bool success, ) = route.destination.call{value: ctx.totalAmountOut}("");
             require(success, "Failed to send PLS");
         } else {
@@ -167,6 +170,8 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(router != address(0), "DEX not supported");
         require(step.path.length == 2, "Invalid path length");
         require(step.path[0] != step.path[1], "Invalid path");
+
+        // console.log("path0", step.path[0], "path1", step.path[1]);
 
         bool isNativeSwap = step.path[0] == address(0);
         if (!isNativeSwap) {
@@ -349,4 +354,6 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setAffiliateRouter(address _affiliateRouter) external onlyOwner {
         affiliateRouter = _affiliateRouter;
     }
+
+    receive() external payable {}
 }

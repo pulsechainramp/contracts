@@ -27,6 +27,8 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     
     // Contract state
     ISwapManager public swapManager;
+    address public defaultReferrer;
+    uint256 public defaultReferrerBasisPoints;
     
     // Events
     event ReferralRegistered(address indexed user, address indexed referrer);
@@ -35,6 +37,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     event ReferralFeeWithdrawn(address referrer, address token, uint256 amount);
     event ReferralFeeAdded(address user, address referrer, address token, uint256 amount);
     event ReferralFeeAmountUpdated(address referrer, address token, uint256 amount);
+    event DefaultReferrerUpdated(address indexed referrer, uint256 feeBasisPoints);
 
     // Modifiers
     modifier onlyValidReferrer(address referrer) {
@@ -63,6 +66,8 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         swapManager = ISwapManager(_swapManager);
         defaultFeeBasisPoints = 10; // 0.1%
         totalBasisPoints = 10000; // 100%
+        defaultReferrer = address(0);
+        defaultReferrerBasisPoints = 30; // 0.3%
     }
     
     /**
@@ -96,11 +101,17 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         
         // Get the referrer (either existing or newly bound)
         address referrer = userReferrer[msg.sender];
+        bool isDefaultReferrer = false;
+
+        if (referrer == address(0) && defaultReferrer != address(0)) {
+            referrer = defaultReferrer;
+            isDefaultReferrer = true;
+        }
         
         // Calculate and process referral fee
         uint256 feeAmount = 0;
         if (referrer != address(0)) {
-            uint256 feeBasisPoints = getFeeBasisPoints(referrer);
+            uint256 feeBasisPoints = isDefaultReferrer ? defaultReferrerBasisPoints : getFeeBasisPoints(referrer);
 
             feeAmount = route.amountIn * feeBasisPoints / totalBasisPoints;
             _processReferral(msg.sender, referrer, feeAmount, isEthSwap ? address(0) : route.tokenIn);
@@ -219,6 +230,25 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         }
 
         return feeBasisPoints;
+    }
+
+    /**
+     * @dev Update the default referrer address (owner only). Set to zero address to disable fallback.
+     */
+    function setDefaultReferrer(address _defaultReferrer) external onlyOwner {
+        defaultReferrer = _defaultReferrer;
+        emit DefaultReferrerUpdated(_defaultReferrer, defaultReferrerBasisPoints);
+    }
+
+    /**
+     * @dev Update the default referrer fee basis points (owner only)
+     * @param newFeeBasisPoints New fee basis points for the default referrer
+     */
+    function setDefaultReferrerBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
+        require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
+        require(newFeeBasisPoints <= 300, "Default fee too high");
+        defaultReferrerBasisPoints = newFeeBasisPoints;
+        emit DefaultReferrerUpdated(defaultReferrer, newFeeBasisPoints);
     }
     
     /**

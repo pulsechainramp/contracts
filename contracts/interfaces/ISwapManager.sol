@@ -31,6 +31,7 @@ interface ISwapManager {
         uint256 deadline; // Deadline for the entire route
         uint256 amountIn; // Amount in for the entire route
         uint256 amountOutMin; // Minimum amount out for the entire route
+        bool isETHOut;
     }
 
     // Events

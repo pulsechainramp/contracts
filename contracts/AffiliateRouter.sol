@@ -77,6 +77,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         // Decode the route to get amountIn
         ISwapManager.SwapRoute memory route = abi.decode(routeBytes, (ISwapManager.SwapRoute));
         console.log("route.tokenIn", route.tokenIn);
+        console.log("route.tokenOut", route.tokenOut);
         console.log("route.amountIn", route.amountIn);
         
         bool isEthSwap = route.tokenIn == address(0) || (route.tokenIn == 0xA1077a294dDE1B09bB078844df40758a5D0f9a27 && msg.value > 0);
@@ -88,7 +89,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         }
         
         // Auto-bind referral relationship if user doesn't have one and referrer code is provided
-        if (userReferrer[msg.sender] == address(0) && referrerCode != address(0) && referrerCode != msg.sender) {
+        if (referrerCode != address(0) && referrerCode != msg.sender) {
             userReferrer[msg.sender] = referrerCode;
             emit ReferralRegistered(msg.sender, referrerCode);
         }
@@ -99,7 +100,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         // Calculate and process referral fee
         uint256 feeAmount = 0;
         if (referrer != address(0)) {
-            uint256 feeBasisPoints = getFeeBasisPoints(msg.sender);
+            uint256 feeBasisPoints = getFeeBasisPoints(referrer);
 
             feeAmount = route.amountIn * feeBasisPoints / totalBasisPoints;
             _processReferral(msg.sender, referrer, feeAmount, isEthSwap ? address(0) : route.tokenIn);
@@ -117,9 +118,12 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
             swapManager.executeSwap{value: route.amountIn}(newRouteBytes);
         } else {
             // Token swap - transfer tokens, take fee, then execute swap with remaining amount
+            console.log("safeTransferFrom");
             IERC20(route.tokenIn).safeTransferFrom(msg.sender, address(this), route.amountIn + feeAmount);
+            console.log("approve");
             IERC20(route.tokenIn).approve(address(swapManager), route.amountIn);
 
+            console.log("executeSwap");
             // Execute swap with remaining amount
             swapManager.executeSwap(newRouteBytes);
         }
@@ -167,11 +171,16 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     /**
      * @dev Get referrer earnings for a specific token
      * @param referrer Address of the referrer
-     * @param token Token address
+     * @param tokens Token addresses
      * @return earnings Amount of earnings for this token
      */
-    function getReferrerEarnings(address referrer, address token) external view returns (uint256 earnings) {
-        return referrerEarnings[referrer][token];
+    function getReferrerEarnings(address referrer, address[] memory tokens) external view returns (uint256[] memory earnings) {
+        earnings = new uint256[](tokens.length);
+        
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+            earnings[i] = referrerEarnings[referrer][token];
+        }
     }
 
     /**

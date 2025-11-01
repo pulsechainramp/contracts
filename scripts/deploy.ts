@@ -9,8 +9,8 @@ async function main() {
   console.log("Starting deployments");
   const accounts = await hre.ethers.getSigners();
   const deployer = accounts[0];
-  const SwapManagerAddress = "0x614Cc6667bD97367E01940eD6939cEA612a0c391";
-  const AffiliateRouterAddress = "0x484f957900F15919f9d3D48e70703d66f34A22DE";
+  const SwapManagerAddress = "0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5";
+  const AffiliateRouterAddress = "0x7872B42710294ce16fEA60575da45Fde51db78e8";
   const PhuxVaultAddress = "0x7F51AC3df6A034273FB09BB29e383FCF655e473c";
   const PulseXV1RouterAddress = "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02";
   const PulseXV2RouterAddress = "0x165C3410fC91EF562C50559f7d2289fEbed552d9";

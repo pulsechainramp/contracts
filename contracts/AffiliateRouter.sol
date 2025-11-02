@@ -7,7 +7,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ISwapManager} from "./interfaces/ISwapManager.sol";
-import "hardhat/console.sol";
 
 /**
  * @title AffiliateRouter
@@ -29,9 +28,23 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     ISwapManager public swapManager;
     address public defaultReferrer;
     uint256 public defaultReferrerBasisPoints;
+
+    struct ReferralPromo {
+        address firstReferrer;
+        uint64 boundAt;
+        uint16 promoBps;
+        uint8 promoRemaining;
+    }
+
+    mapping(address => ReferralPromo) public referral;
+    uint16 public constant MAX_PROMO_BPS = 300;
+    uint16 public constant TAIL_BPS = 10;
+    uint8 public constant PROMO_SWAP_COUNT = 3;
     
     // Events
     event ReferralRegistered(address indexed user, address indexed referrer);
+    event ReferralBound(address indexed user, address indexed referrer, uint256 boundAt, uint16 promoBps);
+    event PromoConsumed(address indexed user, address indexed referrer, uint8 remaining);
     event SwapExecuted(address indexed user, address indexed referrer, uint256 amountIn, uint256 feeAmount);
     event FeeBasisPointsUpdated(address indexed user, uint256 newFeeBasisPoints);
     event ReferralFeeWithdrawn(address referrer, address token, uint256 amount);
@@ -67,7 +80,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         defaultFeeBasisPoints = 10; // 0.1%
         totalBasisPoints = 10000; // 100%
         defaultReferrer = address(0);
-        defaultReferrerBasisPoints = 30; // 0.3%
+        defaultReferrerBasisPoints = 10; // 0.1%
     }
     
     /**
@@ -79,65 +92,54 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         bytes calldata routeBytes,
         address referrerCode
     ) external payable nonReentrant whenNotPaused onlyValidSwap(routeBytes) {
-        // Decode the route to get amountIn
         ISwapManager.SwapRoute memory route = abi.decode(routeBytes, (ISwapManager.SwapRoute));
-        console.log("route.tokenIn", route.tokenIn);
-        console.log("route.tokenOut", route.tokenOut);
-        console.log("route.amountIn", route.amountIn);
-        
-        bool isEthSwap = route.tokenIn == address(0) || (route.tokenIn == 0xA1077a294dDE1B09bB078844df40758a5D0f9a27 && msg.value > 0);
-        // Validate amount
+
+        bool isEthSwap = route.tokenIn == address(0) ||
+            (route.tokenIn == 0xA1077a294dDE1B09bB078844df40758a5D0f9a27 && msg.value > 0);
+
         if (isEthSwap) {
             require(msg.value == route.amountIn, "Incorrect ETH amount");
         } else {
             require(msg.value == 0, "ETH not needed for token swap");
         }
-        
-        // Auto-bind referral relationship if user doesn't have one and referrer code is provided
+
         if (referrerCode != address(0) && referrerCode != msg.sender) {
-            userReferrer[msg.sender] = referrerCode;
-            emit ReferralRegistered(msg.sender, referrerCode);
+            _bindFirst(msg.sender, referrerCode, uint16(getFeeBasisPoints(referrerCode)));
         }
-        
-        // Get the referrer (either existing or newly bound)
-        address referrer = userReferrer[msg.sender];
-        bool isDefaultReferrer = false;
 
-        if (referrer == address(0) && defaultReferrer != address(0)) {
-            referrer = defaultReferrer;
-            isDefaultReferrer = true;
-        }
-        
-        // Calculate and process referral fee
+        (address referrer, uint16 feeBasisPoints, bool consumePromo) = _computeReferral(
+            msg.sender
+        );
+
+        uint256 originalAmountIn = route.amountIn;
         uint256 feeAmount = 0;
-        if (referrer != address(0)) {
-            uint256 feeBasisPoints = isDefaultReferrer ? defaultReferrerBasisPoints : getFeeBasisPoints(referrer);
 
-            feeAmount = route.amountIn * feeBasisPoints / totalBasisPoints;
-            _processReferral(msg.sender, referrer, feeAmount, isEthSwap ? address(0) : route.tokenIn);
-
-            route.amountIn = route.amountIn - feeAmount;
-            route.amountOutMin = route.amountOutMin * (totalBasisPoints - feeBasisPoints) / totalBasisPoints;
+        if (referrer != address(0) && feeBasisPoints > 0) {
+            feeAmount = (originalAmountIn * feeBasisPoints) / totalBasisPoints;
+            if (feeAmount > 0) {
+                route.amountIn = originalAmountIn - feeAmount;
+                route.amountOutMin = (route.amountOutMin * (totalBasisPoints - feeBasisPoints)) / totalBasisPoints;
+                _processReferral(
+                    msg.sender,
+                    referrer,
+                    feeAmount,
+                    isEthSwap ? address(0) : route.tokenIn
+                );
+            }
         }
-        
+
         route.destination = msg.sender;
         bytes memory newRouteBytes = abi.encode(route);
-        // Execute the swap through SwapManager with remaining amount
+
         if (isEthSwap) {
-            console.log("route.amountIn", route.amountIn);
-            // ETH swap - execute swap with remaining amount after fee deduction
             swapManager.executeSwap{value: route.amountIn}(newRouteBytes);
         } else {
-            // Token swap - transfer tokens, take fee, then execute swap with remaining amount
-            console.log("safeTransferFrom");
             IERC20(route.tokenIn).safeTransferFrom(msg.sender, address(this), route.amountIn + feeAmount);
-            console.log("approve");
             IERC20(route.tokenIn).approve(address(swapManager), route.amountIn);
-
-            console.log("executeSwap");
-            // Execute swap with remaining amount
             swapManager.executeSwap(newRouteBytes);
         }
+
+        _afterSwapConsumePromo(msg.sender, consumePromo);
 
         emit SwapExecuted(msg.sender, referrer, route.amountIn, feeAmount);
     }
@@ -194,6 +196,87 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         }
     }
 
+    function _bindFirst(
+        address user,
+        address ref,
+        uint16 affiliateBps
+    ) internal {
+        if (ref == address(0) || ref == user) {
+            return;
+        }
+
+        ReferralPromo storage promo = referral[user];
+
+        if (promo.firstReferrer != address(0) || userReferrer[user] != address(0)) {
+            return;
+        }
+
+        uint16 promoBps = affiliateBps > MAX_PROMO_BPS ? MAX_PROMO_BPS : affiliateBps;
+
+        promo.firstReferrer = ref;
+        promo.boundAt = uint64(block.timestamp);
+        promo.promoBps = promoBps;
+        promo.promoRemaining = PROMO_SWAP_COUNT;
+
+        if (userReferrer[user] == address(0)) {
+            userReferrer[user] = ref;
+            emit ReferralRegistered(user, ref);
+        }
+
+        emit ReferralBound(user, ref, block.timestamp, promoBps);
+    }
+
+    function _computeReferral(
+        address user
+    ) internal view returns (address referrer, uint16 bps, bool willConsumePromo) {
+        ReferralPromo memory promo = referral[user];
+
+        if (promo.firstReferrer != address(0)) {
+            (uint16 effectiveBps, bool consume) = _effectiveBps(promo);
+            return (promo.firstReferrer, effectiveBps, consume);
+        }
+
+        address legacyRef = userReferrer[user];
+        if (legacyRef != address(0)) {
+            return (legacyRef, TAIL_BPS, false);
+        }
+
+        if (defaultReferrer != address(0)) {
+            return (defaultReferrer, uint16(defaultReferrerBasisPoints), false);
+        }
+
+        return (address(0), 0, false);
+    }
+
+    function _effectiveBps(
+        ReferralPromo memory promo
+    ) internal pure returns (uint16 bps, bool willConsumePromo) {
+        if (promo.firstReferrer == address(0)) {
+            return (0, false);
+        }
+
+        if (promo.promoRemaining > 0) {
+            return (promo.promoBps, true);
+        }
+
+        return (TAIL_BPS, false);
+    }
+
+    function _afterSwapConsumePromo(address user, bool consumed) internal {
+        if (!consumed) {
+            return;
+        }
+
+        ReferralPromo storage promo = referral[user];
+
+        if (promo.promoRemaining > 0) {
+            unchecked {
+                promo.promoRemaining -= 1;
+            }
+            emit PromoConsumed(user, promo.firstReferrer, promo.promoRemaining);
+        }
+    }
+
     /**
      * @dev Process referral and update earnings
      * @param user Address of the user
@@ -246,7 +329,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
      */
     function setDefaultReferrerBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
         require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
-        require(newFeeBasisPoints <= 300, "Default fee too high");
+        require(newFeeBasisPoints <= 10, "Default fee too high");
         defaultReferrerBasisPoints = newFeeBasisPoints;
         emit DefaultReferrerUpdated(defaultReferrer, newFeeBasisPoints);
     }

@@ -60,7 +60,7 @@ npx hardhat console --network pulse
 ### Hardhat console snippets
 
 ```javascript
-const router = await ethers.getContractAt("AffiliateRouter", "0x7872B42710294ce16fEA60575da45Fde51db78e8");
+const manager = await ethers.getContractAt("SwapManager", "0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5");
 
 const keys = [
   "pulsexV1",
@@ -92,6 +92,8 @@ const routers = [
 
 await manager.setDexRouters(keys, routers);
 await manager.dexRouters("pulsexV2")
+
+const router = await ethers.getContractAt("AffiliateRouter", "0x7872B42710294ce16fEA60575da45Fde51db78e8");
 
 // Address to recieve default fees if user is not referred
 await router.setDefaultReferrer("0x137e0A3205023f78535Ed303DAED89FCde8d87c2"); 

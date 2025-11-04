@@ -38,7 +38,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
 
     mapping(address => ReferralPromo) public referral;
     uint16 public constant MAX_PROMO_BPS = 300;
-    uint16 public constant TAIL_BPS = 10;
+    uint16 public constant TAIL_BPS = 30;
     uint8 public constant PROMO_SWAP_COUNT = 3;
     
     // Events
@@ -80,7 +80,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         defaultFeeBasisPoints = 10; // 0.1%
         totalBasisPoints = 10000; // 100%
         defaultReferrer = address(0);
-        defaultReferrerBasisPoints = 10; // 0.1%
+        defaultReferrerBasisPoints = 30; // 0.3%
     }
     
     /**
@@ -238,11 +238,16 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
 
         address legacyRef = userReferrer[user];
         if (legacyRef != address(0)) {
-            return (legacyRef, TAIL_BPS, false);
+            uint16 legacyBps = uint16(getFeeBasisPoints(legacyRef));
+            uint16 tailBps = legacyBps < TAIL_BPS ? legacyBps : TAIL_BPS;
+            return (legacyRef, tailBps, false);
         }
 
         if (defaultReferrer != address(0)) {
-            return (defaultReferrer, uint16(defaultReferrerBasisPoints), false);
+            uint16 defaultTail = defaultReferrerBasisPoints <= TAIL_BPS
+                ? uint16(defaultReferrerBasisPoints)
+                : TAIL_BPS;
+            return (defaultReferrer, defaultTail, false);
         }
 
         return (address(0), 0, false);
@@ -250,16 +255,21 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
 
     function _effectiveBps(
         ReferralPromo memory promo
-    ) internal pure returns (uint16 bps, bool willConsumePromo) {
+    ) internal view returns (uint16 bps, bool willConsumePromo) {
         if (promo.firstReferrer == address(0)) {
             return (0, false);
         }
 
         if (promo.promoRemaining > 0) {
-            return (promo.promoBps, true);
+            uint16 currentBps = uint16(getFeeBasisPoints(promo.firstReferrer));
+            uint16 cappedPromo = currentBps < MAX_PROMO_BPS ? currentBps : MAX_PROMO_BPS;
+            return (cappedPromo, true);
         }
 
-        return (TAIL_BPS, false);
+        uint16 referrerBps = uint16(getFeeBasisPoints(promo.firstReferrer));
+        uint16 tailBps = referrerBps < TAIL_BPS ? referrerBps : TAIL_BPS;
+
+        return (tailBps, false);
     }
 
     function _afterSwapConsumePromo(address user, bool consumed) internal {
@@ -329,7 +339,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
      */
     function setDefaultReferrerBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
         require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
-        require(newFeeBasisPoints <= 10, "Default fee too high");
+        require(newFeeBasisPoints <= 30, "Default fee too high");
         defaultReferrerBasisPoints = newFeeBasisPoints;
         emit DefaultReferrerUpdated(defaultReferrer, newFeeBasisPoints);
     }

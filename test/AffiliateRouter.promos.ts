@@ -23,7 +23,7 @@ const encodeRoute = (amountIn: bigint, amountOutMin: bigint, tokenIn = ethers.Ze
 };
 
 describe("AffiliateRouter promos", () => {
-  const tailBps = 10n;
+  const tailCapBps = 30n;
 
   const deployRouter = async () => {
     const MockSwapManager = await ethers.getContractFactory("MockSwapManager");
@@ -82,7 +82,7 @@ describe("AffiliateRouter promos", () => {
     expect(promo.promoRemaining).to.equal(1); // two promos consumed
   });
 
-  it("charges tail fee after promos are exhausted", async () => {
+  it("charges capped tail fee after promos are exhausted", async () => {
     const { router } = await deployRouter();
     const [, referrer, , user] = await ethers.getSigners();
 
@@ -101,8 +101,71 @@ describe("AffiliateRouter promos", () => {
 
     const totalEarned = await router.referrerEarnings(await referrer.getAddress(), ethers.ZeroAddress);
     const promoFeePerSwap = (amount * 300n) / 10000n;
-    const tailFee = (amount * tailBps) / 10000n;
+    const tailFee = (amount * tailCapBps) / 10000n;
     expect(totalEarned).to.equal(promoFeePerSwap * 3n + tailFee);
   });
 
+  it("respects lower referrer rate when promos are depleted", async () => {
+    const { router } = await deployRouter();
+    const [, referrer, , user] = await ethers.getSigners();
+
+    await router.connect(referrer).updateFeeBasisPoints("10"); // 0.1%
+
+    const amount = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amount, amount);
+
+    for (let i = 0; i < 4; i++) {
+      await router.connect(user).executeSwap(routeBytes, await referrer.getAddress(), { value: amount });
+    }
+
+    const promoAfterFour = await router.referral(await user.getAddress());
+    expect(promoAfterFour.promoRemaining).to.equal(0);
+
+    const totalEarned = await router.referrerEarnings(await referrer.getAddress(), ethers.ZeroAddress);
+    const promoFeePerSwap = (amount * 10n) / 10000n;
+    const tailFee = (amount * 10n) / 10000n;
+    expect(totalEarned).to.equal(promoFeePerSwap * 3n + tailFee);
+  });
+
+  it("keeps promo rate at referrer's setting when below max", async () => {
+    const { router } = await deployRouter();
+    const [, referrer, , user] = await ethers.getSigners();
+
+    await router.connect(referrer).updateFeeBasisPoints("150"); // 1.5%
+
+    const amount = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amount, amount);
+
+    await router.connect(user).executeSwap(routeBytes, await referrer.getAddress(), { value: amount });
+
+    const promo = await router.referral(await user.getAddress());
+    expect(promo.promoBps).to.equal(150);
+  });
+
+  it("uses default referrer tail capped at 0.3%", async () => {
+    const { router, mockSwapManager } = await deployRouter();
+    const [owner, , , user] = await ethers.getSigners();
+
+    await router.connect(owner).setDefaultReferrer(await owner.getAddress());
+    await router.connect(owner).setDefaultReferrerBasisPoints(25);
+
+    const amount = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amount, amount);
+
+    await router.connect(user).executeSwap(routeBytes, ethers.ZeroAddress, { value: amount });
+
+    const earnings = await router.referrerEarnings(await owner.getAddress(), ethers.ZeroAddress);
+    const expected = (amount * 25n) / 10000n;
+    expect(earnings).to.equal(expected);
+    expect(await mockSwapManager.lastMsgValue()).to.equal(amount - expected);
+  });
+
+  it("caps default referrer basis points at 0.3%", async () => {
+    const { router } = await deployRouter();
+    const [owner] = await ethers.getSigners();
+
+    await expect(router.connect(owner).setDefaultReferrerBasisPoints(40)).to.be.revertedWith(
+      "Default fee too high"
+    );
+  });
 });

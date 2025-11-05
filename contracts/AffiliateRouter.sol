@@ -427,4 +427,6 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
      * @dev Receive ETH
      */
     receive() external payable {}
-} 
+
+    uint256[50] private __gap;
+}

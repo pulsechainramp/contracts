@@ -370,4 +370,6 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     receive() external payable {}
+
+    uint256[50] private __gap;
 }

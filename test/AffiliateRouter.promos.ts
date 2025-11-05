@@ -4,7 +4,12 @@ import { ethers, upgrades } from "hardhat";
 const routeType =
   "tuple(tuple(string dex,address[] path,address pool,uint256 percent,uint256 groupId,uint256 parentGroupId,bytes userData)[] steps,tuple(uint256 id,uint256 percent)[] parentGroups,address destination,address tokenIn,address tokenOut,uint256 groupCount,uint256 deadline,uint256 amountIn,uint256 amountOutMin,bool isETHOut)";
 
-const encodeRoute = (amountIn: bigint, amountOutMin: bigint, tokenIn = ethers.ZeroAddress) => {
+const encodeRoute = (
+  amountIn: bigint,
+  amountOutMin: bigint,
+  tokenIn = ethers.ZeroAddress,
+  overrides: Partial<Record<string, bigint | string>> = {}
+) => {
   const abiCoder = ethers.AbiCoder.defaultAbiCoder();
   const route = {
     steps: [],
@@ -19,7 +24,7 @@ const encodeRoute = (amountIn: bigint, amountOutMin: bigint, tokenIn = ethers.Ze
     isETHOut: false,
   };
 
-  return abiCoder.encode([routeType], [route]);
+  return abiCoder.encode([routeType], [{ ...route, ...overrides }]);
 };
 
 describe("AffiliateRouter promos", () => {
@@ -125,6 +130,38 @@ describe("AffiliateRouter promos", () => {
     const promoFeePerSwap = (amount * 10n) / 10000n;
     const tailFee = (amount * 10n) / 10000n;
     expect(totalEarned).to.equal(promoFeePerSwap * 3n + tailFee);
+  });
+
+  it("preserves positive amountOutMin after fee scaling", async () => {
+    const { router, mockSwapManager } = await deployRouter();
+    const [, referrer, , user] = await ethers.getSigners();
+
+    await router.connect(referrer).updateFeeBasisPoints("300"); // 3%
+
+    const amountIn = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amountIn, 1n);
+
+    await router
+      .connect(user)
+      .executeSwap(routeBytes, await referrer.getAddress(), { value: amountIn });
+
+    expect(await mockSwapManager.lastAmountOutMin()).to.equal(1n);
+  });
+
+  it("allows zero minimum outputs to remain zero after scaling", async () => {
+    const { router, mockSwapManager } = await deployRouter();
+    const [, referrer, , user] = await ethers.getSigners();
+
+    await router.connect(referrer).updateFeeBasisPoints("300"); // 3%
+
+    const amountIn = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amountIn, 0n);
+
+    await router
+      .connect(user)
+      .executeSwap(routeBytes, await referrer.getAddress(), { value: amountIn });
+
+    expect(await mockSwapManager.lastAmountOutMin()).to.equal(0n);
   });
 
   it("keeps promo rate at referrer's setting when below max", async () => {

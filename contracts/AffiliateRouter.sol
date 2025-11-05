@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ISwapManager} from "./interfaces/ISwapManager.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title AffiliateRouter
@@ -124,10 +125,19 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         uint256 feeAmount = 0;
 
         if (referrer != address(0) && feeBasisPoints > 0) {
+            require(feeBasisPoints < totalBasisPoints, "Fee exceeds total basis points");
             feeAmount = (originalAmountIn * feeBasisPoints) / totalBasisPoints;
             if (feeAmount > 0) {
                 route.amountIn = originalAmountIn - feeAmount;
-                route.amountOutMin = (route.amountOutMin * (totalBasisPoints - feeBasisPoints)) / totalBasisPoints;
+                uint256 scaledMin = Math.mulDiv(
+                    route.amountOutMin,
+                    totalBasisPoints - feeBasisPoints,
+                    totalBasisPoints
+                );
+                if (route.amountOutMin > 0 && scaledMin == 0) {
+                    scaledMin = 1;
+                }
+                route.amountOutMin = scaledMin;
                 _processReferral(
                     msg.sender,
                     referrer,

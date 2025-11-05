@@ -88,6 +88,11 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(route.steps.length > 0, "Empty route");
         require(block.timestamp <= route.deadline, "Route expired");
 
+        address inputAsset = route.tokenIn == address(0)
+            ? address(weth)
+            : route.tokenIn;
+        uint256 inputBalanceBefore = IERC20(inputAsset).balanceOf(address(this));
+
         // Transfer tokens from user
         if (route.tokenIn != address(0) && route.tokenIn != address(weth)) {
             IERC20(route.tokenIn).safeTransferFrom(
@@ -152,6 +157,18 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             require(success, "Failed to send PLS");
         } else {
             IERC20(route.tokenOut).safeTransfer(route.destination, ctx.totalAmountOut);
+        }
+
+        uint256 inputBalanceAfter = IERC20(inputAsset).balanceOf(address(this));
+        if (inputBalanceAfter > inputBalanceBefore) {
+            uint256 leftoverInput = inputBalanceAfter - inputBalanceBefore;
+            if (route.tokenIn == address(0)) {
+                weth.withdraw(leftoverInput);
+                (bool refundSuccess, ) = route.destination.call{value: leftoverInput}("");
+                require(refundSuccess, "Failed to refund PLS");
+            } else {
+                IERC20(inputAsset).safeTransfer(route.destination, leftoverInput);
+            }
         }
     }
 

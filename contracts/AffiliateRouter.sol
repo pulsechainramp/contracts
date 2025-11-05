@@ -414,28 +414,6 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     }
     
     /**
-     * @dev Emergency withdraw tokens (owner only)
-     * @param token Token to withdraw
-     * @param to Recipient address
-     * @param amount Amount to withdraw
-     */
-    function emergencyWithdraw(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyOwner {
-        require(to != address(0), "Invalid recipient");
-        
-        if (token == address(0)) {
-            require(amount <= address(this).balance, "Insufficient ETH balance");
-            (bool success, ) = to.call{value: amount}("");
-            require(success, "Failed to send ETH");
-        } else {
-            IERC20(token).safeTransfer(to, amount);
-        }
-    }
-    
-    /**
      * @dev Receive ETH
      */
     receive() external payable {}

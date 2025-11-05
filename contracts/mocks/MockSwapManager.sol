@@ -40,8 +40,6 @@ contract MockSwapManager is ISwapManager {
         emit SwapRecorded(msg.sender, route.destination, route.tokenIn, route.amountIn, msg.value);
     }
 
-    function rescueTokens(address, address) external override {}
-
     function setAffiliateRouter(address _affiliateRouter) external override {
         affiliateRouter = _affiliateRouter;
     }

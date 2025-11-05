@@ -47,6 +47,5 @@ interface ISwapManager {
     function initialize(address _affiliateRouter) external;
     function setDexRouters(string[] calldata keys, address[] calldata routers) external;
     function executeSwap(bytes calldata routeBytes) external payable;
-    function rescueTokens(address token, address to) external;
     function setAffiliateRouter(address _affiliateRouter) external;
-} 
+}

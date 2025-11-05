@@ -340,10 +340,6 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         ITideVault(tideVault).sendTo(IERC20(tokenOut), address(this), amountOutRaw);
     }
 
-    function rescueTokens(address token, address to) external onlyOwner {
-        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
-    }
-
     function _snapshotBalance(address token) internal view returns (uint256) {
         if (token == address(0)) {
             return address(this).balance;

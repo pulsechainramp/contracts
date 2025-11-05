@@ -122,39 +122,66 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         );
 
         uint256 originalAmountIn = route.amountIn;
+        uint256 originalAmountOutMin = route.amountOutMin;
         uint256 feeAmount = 0;
 
-        if (referrer != address(0) && feeBasisPoints > 0) {
-            require(feeBasisPoints < totalBasisPoints, "Fee exceeds total basis points");
-            feeAmount = (originalAmountIn * feeBasisPoints) / totalBasisPoints;
-            if (feeAmount > 0) {
-                route.amountIn = originalAmountIn - feeAmount;
-                uint256 scaledMin = Math.mulDiv(
-                    route.amountOutMin,
-                    totalBasisPoints - feeBasisPoints,
-                    totalBasisPoints
-                );
-                if (route.amountOutMin > 0 && scaledMin == 0) {
-                    scaledMin = 1;
-                }
-                route.amountOutMin = scaledMin;
-                _processReferral(
-                    msg.sender,
-                    referrer,
-                    feeAmount,
-                    isEthSwap ? address(0) : route.tokenIn
-                );
-            }
-        }
+        require(feeBasisPoints < totalBasisPoints, "Fee exceeds total basis points");
 
         route.destination = msg.sender;
-        bytes memory newRouteBytes = abi.encode(route);
 
         if (isEthSwap) {
+            if (referrer != address(0) && feeBasisPoints > 0) {
+                feeAmount = Math.mulDiv(originalAmountIn, feeBasisPoints, totalBasisPoints);
+                if (feeAmount > 0) {
+                    uint256 swapAmount = originalAmountIn - feeAmount;
+                    require(swapAmount > 0, "Insufficient amount after fees");
+
+                    uint256 scaledMin = Math.mulDiv(originalAmountOutMin, swapAmount, originalAmountIn);
+                    if (originalAmountOutMin > 0 && scaledMin == 0) {
+                        scaledMin = 1;
+                    }
+
+                    route.amountIn = swapAmount;
+                    route.amountOutMin = scaledMin;
+
+                    _processReferral(msg.sender, referrer, feeAmount, address(0));
+                }
+            }
+
+            bytes memory newRouteBytes = abi.encode(route);
             swapManager.executeSwap{value: route.amountIn}(newRouteBytes);
         } else {
-            IERC20(route.tokenIn).safeTransferFrom(msg.sender, address(this), route.amountIn + feeAmount);
-            IERC20(route.tokenIn).forceApprove(address(swapManager), route.amountIn);
+            uint256 expectedTransfer = originalAmountIn;
+            if (referrer != address(0) && feeBasisPoints > 0) {
+                expectedTransfer += Math.mulDiv(originalAmountIn, feeBasisPoints, totalBasisPoints);
+            }
+
+            IERC20 tokenIn = IERC20(route.tokenIn);
+            uint256 balanceBefore = tokenIn.balanceOf(address(this));
+            tokenIn.safeTransferFrom(msg.sender, address(this), expectedTransfer);
+            uint256 received = tokenIn.balanceOf(address(this)) - balanceBefore;
+            require(received > 0, "No tokens received");
+
+            if (referrer != address(0) && feeBasisPoints > 0) {
+                feeAmount = Math.mulDiv(received, feeBasisPoints, totalBasisPoints);
+                if (feeAmount > 0) {
+                    _processReferral(msg.sender, referrer, feeAmount, route.tokenIn);
+                }
+            }
+
+            uint256 swapAmount = received - feeAmount;
+            require(swapAmount > 0, "Insufficient amount after fees");
+
+            uint256 scaledMin = Math.mulDiv(originalAmountOutMin, swapAmount, originalAmountIn);
+            if (originalAmountOutMin > 0 && scaledMin == 0) {
+                scaledMin = 1;
+            }
+
+            route.amountIn = swapAmount;
+            route.amountOutMin = scaledMin;
+
+            bytes memory newRouteBytes = abi.encode(route);
+            tokenIn.forceApprove(address(swapManager), swapAmount);
             swapManager.executeSwap(newRouteBytes);
         }
 

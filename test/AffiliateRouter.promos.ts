@@ -226,6 +226,39 @@ describe("AffiliateRouter promos", () => {
     ).to.equal(amountIn);
   });
 
+  it("handles fee-on-transfer tokens by basing fees on received amount", async () => {
+    const { router, mockSwapManager } = await deployRouter();
+    const [, referrer, , user] = await ethers.getSigners();
+
+    await router.connect(referrer).updateFeeBasisPoints("300"); // 3%
+
+    const MockFeeToken = await ethers.getContractFactory("MockFeeOnTransferERC20");
+    const feeToken = await MockFeeToken.deploy(200); // 2% transfer fee
+    await feeToken.waitForDeployment();
+
+    const amountIn = ethers.parseUnits("100", 18);
+    const expectedFeeMax = (amountIn * 300n) / 10000n;
+    const transferAmount = amountIn + expectedFeeMax;
+
+    await feeToken.mint(await user.getAddress(), transferAmount);
+    await feeToken.connect(user).approve(await router.getAddress(), transferAmount);
+
+    const routeBytes = encodeRoute(amountIn, amountIn, await feeToken.getAddress(), {
+      tokenOut: await feeToken.getAddress(),
+    });
+
+    await router.connect(user).executeSwap(routeBytes, await referrer.getAddress());
+
+    const lastAmountIn = await mockSwapManager.lastAmountIn();
+    const recordedFee = await router.referrerEarnings(await referrer.getAddress(), await feeToken.getAddress());
+    const received = lastAmountIn + recordedFee;
+    const expectedFee = (received * 300n) / 10000n;
+
+    expect(lastAmountIn).to.be.gt(0n);
+    expect(recordedFee).to.equal(expectedFee);
+    expect(received).to.be.lte(transferAmount);
+  });
+
   it("caps default referrer basis points at 0.3%", async () => {
     const { router } = await deployRouter();
     const [owner] = await ethers.getSigners();

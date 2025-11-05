@@ -6,6 +6,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ISwapManager} from "./interfaces/ISwapManager.sol";
 
 /**
@@ -28,7 +29,6 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     ISwapManager public swapManager;
     address public defaultReferrer;
     uint256 public defaultReferrerBasisPoints;
-
     struct ReferralPromo {
         address firstReferrer;
         uint64 boundAt;
@@ -37,6 +37,9 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     }
 
     mapping(address => ReferralPromo) public referral;
+    uint256 public referralCreationFee;
+    mapping(address => bool) public referralCreationFeePaid;
+    address payable public referralFeeRecipient;
     uint16 public constant MAX_PROMO_BPS = 300;
     uint16 public constant TAIL_BPS = 30;
     uint8 public constant PROMO_SWAP_COUNT = 3;
@@ -51,6 +54,10 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     event ReferralFeeAdded(address user, address referrer, address token, uint256 amount);
     event ReferralFeeAmountUpdated(address referrer, address token, uint256 amount);
     event DefaultReferrerUpdated(address indexed referrer, uint256 feeBasisPoints);
+    event ReferralCreationFeePaid(address indexed payer, uint256 amount);
+    event ReferralCreationFeeUpdated(uint256 oldFee, uint256 newFee);
+    event ReferralFeeRecipientUpdated(address indexed newRecipient);
+    event DefaultFeeBasisPointsSet(uint256 newFeeBasisPoints);
 
     // Modifiers
     modifier onlyValidReferrer(address referrer) {
@@ -77,10 +84,12 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         require(_swapManager != address(0), "Invalid swap manager");
         
         swapManager = ISwapManager(_swapManager);
-        defaultFeeBasisPoints = 10; // 0.1%
+        defaultFeeBasisPoints = 30; // 0.3%
         totalBasisPoints = 10000; // 100%
         defaultReferrer = address(0);
         defaultReferrerBasisPoints = 30; // 0.3%
+        referralCreationFee = 0;
+        referralFeeRecipient = payable(msg.sender);
     }
     
     /**
@@ -342,6 +351,52 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         require(newFeeBasisPoints <= 30, "Default fee too high");
         defaultReferrerBasisPoints = newFeeBasisPoints;
         emit DefaultReferrerUpdated(defaultReferrer, newFeeBasisPoints);
+    }
+
+    function setDefaultFeeBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
+        require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
+        require(newFeeBasisPoints >= 10 && newFeeBasisPoints <= 300, "Not valid default bps");
+        defaultFeeBasisPoints = newFeeBasisPoints;
+        emit DefaultFeeBasisPointsSet(newFeeBasisPoints);
+    }
+
+    function payReferralCreationFee() external payable nonReentrant whenNotPaused {
+        require(!referralCreationFeePaid[msg.sender], "Referral creation fee already paid");
+
+        uint256 fee = referralCreationFee;
+        require(fee > 0, "Referral creation fee disabled");
+        require(msg.value >= fee, "Insufficient referral creation fee");
+
+        referralCreationFeePaid[msg.sender] = true;
+
+        address payable recipient = referralFeeRecipient;
+        if (recipient == address(0)) {
+            recipient = payable(owner());
+        }
+
+        Address.sendValue(recipient, fee);
+
+        if (msg.value > fee) {
+            Address.sendValue(payable(msg.sender), msg.value - fee);
+        }
+
+        emit ReferralCreationFeePaid(msg.sender, fee);
+    }
+
+    function setReferralCreationFee(uint256 newFee) external onlyOwner {
+        uint256 oldFee = referralCreationFee;
+        referralCreationFee = newFee;
+        emit ReferralCreationFeeUpdated(oldFee, newFee);
+    }
+
+    function setReferralFeeRecipient(address payable newRecipient) external onlyOwner {
+        require(newRecipient != address(0), "Invalid fee recipient");
+        referralFeeRecipient = newRecipient;
+        emit ReferralFeeRecipientUpdated(newRecipient);
+    }
+
+    function hasPaidReferralCreationFee(address account) external view returns (bool) {
+        return referralCreationFeePaid[account];
     }
     
     /**

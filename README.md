@@ -104,6 +104,22 @@ await router.defaultReferrerBasisPoints();
 
 // Withdraw native PLS (ZeroAddress) and WPLS buckets; append ERC-20 addresses to include other tokens
 await router.withdrawReferralEarnings([ethers.ZeroAddress, "0xA1077a294dDE1B09bB078844df40758a5D0f9a27"]);
+
+// --- Referral creation gate ---
+// Check or update the one-time fee required before creating a referral code.
+await router.referralCreationFee();                   // current gate fee in wei
+await router.setReferralCreationFee(ethers.parseEther("50")); // owner: set to 50 PLS
+
+// Redirect gate proceeds
+await router.referralFeeRecipient();
+await router.setReferralFeeRecipient("0xTreasuryWallet");
+
+// Inspect or update the default referral share applied to new wallets
+await router.defaultFeeBasisPoints();                 // defaults to 30 (0.30%)
+await router.setDefaultFeeBasisPoints(40);            // owner: update global default to 0.40%
+
+// See if a wallet has already paid the creation fee gate
+await router.referralCreationFeePaid("0xSomeWallet"); // true/false
 ```
 
 > Set `.env` `PRIVATE_KEY` to the referrer wallet before running withdrawal commands; the connected signer must own the balance being claimed.

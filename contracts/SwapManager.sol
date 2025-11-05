@@ -86,6 +86,7 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     function _executeSwap(SwapRoute memory route) internal {
         require(route.steps.length > 0, "Empty route");
+        require(block.timestamp <= route.deadline, "Route expired");
 
         // Transfer tokens from user
         if (route.tokenIn != address(0) && route.tokenIn != address(weth)) {

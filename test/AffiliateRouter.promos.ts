@@ -197,6 +197,35 @@ describe("AffiliateRouter promos", () => {
     expect(await mockSwapManager.lastMsgValue()).to.equal(amount - expected);
   });
 
+  it("supports non-standard allowance tokens across repeated swaps", async () => {
+    const { router, mockSwapManager } = await deployRouter();
+    const [, , , user] = await ethers.getSigners();
+
+    const MockUSDT = await ethers.getContractFactory("MockUSDT");
+    const token = await MockUSDT.deploy();
+    await token.waitForDeployment();
+
+    const amountIn = ethers.parseUnits("100", 6);
+    const routeBytes = encodeRoute(amountIn, 0n, await token.getAddress());
+
+    await token.mint(await user.getAddress(), amountIn * 2n);
+    await token.connect(user).approve(await router.getAddress(), 0);
+    await token.connect(user).approve(await router.getAddress(), amountIn * 2n);
+
+    await expect(
+      router.connect(user).executeSwap(routeBytes, ethers.ZeroAddress)
+    ).to.not.be.reverted;
+
+    await expect(
+      router.connect(user).executeSwap(routeBytes, ethers.ZeroAddress)
+    ).to.not.be.reverted;
+
+    expect(await mockSwapManager.lastAmountIn()).to.equal(amountIn);
+    expect(
+      await token.allowance(await router.getAddress(), await mockSwapManager.getAddress())
+    ).to.equal(amountIn);
+  });
+
   it("caps default referrer basis points at 0.3%", async () => {
     const { router } = await deployRouter();
     const [owner] = await ethers.getSigners();

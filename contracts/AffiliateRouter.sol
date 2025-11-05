@@ -154,7 +154,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
             swapManager.executeSwap{value: route.amountIn}(newRouteBytes);
         } else {
             IERC20(route.tokenIn).safeTransferFrom(msg.sender, address(this), route.amountIn + feeAmount);
-            IERC20(route.tokenIn).approve(address(swapManager), route.amountIn);
+            IERC20(route.tokenIn).forceApprove(address(swapManager), route.amountIn);
             swapManager.executeSwap(newRouteBytes);
         }
 

@@ -195,10 +195,10 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         if (!isNativeSwap) {
             if (dexHash == keccak256(bytes("pulsexStable"))) {
                 // Approve tokens for the current step
-                IERC20(step.path[0]).approve(step.pool, amountIn);
+                IERC20(step.path[0]).forceApprove(step.pool, amountIn);
             } else if (dexHash != keccak256(bytes("tide"))) {
                 // Approve tokens for the current step
-                IERC20(step.path[0]).approve(router, amountIn);
+                IERC20(step.path[0]).forceApprove(router, amountIn);
             }
         }
 

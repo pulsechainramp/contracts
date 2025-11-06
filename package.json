@@ -1,15 +1,29 @@
 {
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "ethers": "^6.13.5",
-    "hardhat": "^2.22.19"
+    "@nomicfoundation/hardhat-toolbox": "5.0.0",
+    "ethers": "6.13.5",
+    "hardhat": "2.26.5"
   },
   "dependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.8",
-    "@openzeppelin/contracts": "^5.3.0",
-    "@openzeppelin/contracts-upgradeable": "^5.3.0",
-    "@openzeppelin/hardhat-upgrades": "^3.9.0",
-    "@openzeppelin/upgrades-core": "^1.43.0",
-    "dotenv": "^16.5.0"
+    "@nomicfoundation/hardhat-ethers": "3.0.8",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@openzeppelin/hardhat-upgrades": "3.9.1",
+    "@openzeppelin/upgrades-core": "1.44.2",
+    "dotenv": "16.5.0"
+  },
+  "overrides": {
+    "@sentry/node": "7.118.0",
+    "axios": "1.13.2",
+    "brace-expansion": "1.1.12",
+    "cookie": "0.7.2",
+    "form-data": "2.5.5",
+    "pbkdf2": "3.1.5",
+    "sha.js": "2.4.12",
+    "tmp": "0.2.5",
+    "minimatch": "9.0.5",
+    "minimatch@^9.0.0": {
+      "brace-expansion": "2.0.2"
+    }
   }
 }

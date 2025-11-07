@@ -1,6 +1,32 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
+const routeType =
+  "tuple(tuple(string dex,address[] path,address pool,uint256 percent,uint256 groupId,uint256 parentGroupId,bytes userData)[] steps,tuple(uint256 id,uint256 percent)[] parentGroups,address destination,address tokenIn,address tokenOut,uint256 groupCount,uint256 deadline,uint256 amountIn,uint256 amountOutMin,bool isETHOut)";
+
+const encodeRoute = (
+  amountIn: bigint,
+  amountOutMin: bigint,
+  tokenIn = ethers.ZeroAddress,
+  overrides: Partial<Record<string, bigint | string>> = {}
+) => {
+  const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+  const route = {
+    steps: [],
+    parentGroups: [],
+    destination: ethers.ZeroAddress,
+    tokenIn,
+    tokenOut: ethers.ZeroAddress,
+    groupCount: 0,
+    deadline: 0n,
+    amountIn,
+    amountOutMin,
+    isETHOut: false,
+  };
+
+  return abiCoder.encode([routeType], [{ ...route, ...overrides }]);
+};
+
 const deployRouter = async () => {
   const MockSwapManager = await ethers.getContractFactory("MockSwapManager");
   const mockSwapManager = await MockSwapManager.deploy();
@@ -106,5 +132,48 @@ describe("AffiliateRouter referral creation fee gate", () => {
     await expect(router.connect(owner).setDefaultFeeBasisPoints(5)).to.be.revertedWith(
       "Not valid default bps"
     );
+  });
+
+  it("requires referral fee payment before updating custom fee basis points", async () => {
+    const { router } = await deployRouter();
+    const [owner, referrer] = await ethers.getSigners();
+
+    const fee = ethers.parseEther("0.25");
+    await router.connect(owner).setReferralCreationFee(fee);
+
+    await expect(router.connect(referrer).updateFeeBasisPoints(100)).to.be.revertedWith(
+      "Referrer must pay creation fee"
+    );
+
+    await router.connect(referrer).payReferralCreationFee({ value: fee });
+
+    await expect(router.connect(referrer).updateFeeBasisPoints(100))
+      .to.emit(router, "FeeBasisPointsUpdated")
+      .withArgs(await referrer.getAddress(), 100);
+  });
+
+  it("blocks binding to unpaid referrers until they pay the fee", async () => {
+    const { router } = await deployRouter();
+    const [owner, referrer, , user] = await ethers.getSigners();
+
+    const fee = ethers.parseEther("0.1");
+    await router.connect(owner).setReferralCreationFee(fee);
+    expect(await router.referralCreationFee()).to.equal(fee);
+
+    const amountIn = ethers.parseEther("1");
+    const routeBytes = encodeRoute(amountIn, amountIn);
+
+    await expect(
+      router.connect(user).executeSwap(routeBytes, await referrer.getAddress(), { value: amountIn })
+    ).to.be.revertedWith("Referrer must pay creation fee");
+
+    await router.connect(referrer).payReferralCreationFee({ value: fee });
+
+    await expect(
+      router.connect(user).executeSwap(routeBytes, await referrer.getAddress(), { value: amountIn })
+    ).to.not.be.reverted;
+
+    const promo = await router.referral(await user.getAddress());
+    expect(promo.firstReferrer).to.equal(await referrer.getAddress());
   });
 });

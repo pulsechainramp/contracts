@@ -257,6 +257,8 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
             return;
         }
 
+        _requireEligibleReferrer(ref);
+
         uint16 promoBps = affiliateBps > MAX_PROMO_BPS ? MAX_PROMO_BPS : affiliateBps;
 
         promo.firstReferrer = ref;
@@ -353,9 +355,18 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         emit ReferralFeeAmountUpdated(referrer, token, referrerEarnings[referrer][token]);
     }
 
+    function _requireEligibleReferrer(address referrer) internal view {
+        if (referralCreationFee == 0) {
+            return;
+        }
+
+        require(referralCreationFeePaid[referrer], "Referrer must pay creation fee");
+    }
+
     function updateFeeBasisPoints(uint256 newFeeBasisPoints) external {
         require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
         require(newFeeBasisPoints >= 10 && newFeeBasisPoints <= 300, "not valid fee basis points");
+        _requireEligibleReferrer(msg.sender);
         
         userFeeBasisPoints[msg.sender] = newFeeBasisPoints;
         

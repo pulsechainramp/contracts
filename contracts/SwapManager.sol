@@ -87,11 +87,33 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function _executeSwap(SwapRoute memory route) internal {
         require(route.steps.length > 0, "Empty route");
         require(block.timestamp <= route.deadline, "Route expired");
+        require(route.amountOutMin > 0, "amountOutMin must be positive");
+        require(route.destination != address(0), "Destination cannot be empty");
 
         address inputAsset = route.tokenIn == address(0)
             ? address(weth)
             : route.tokenIn;
         uint256 inputBalanceBefore = IERC20(inputAsset).balanceOf(address(this));
+
+        uint256 trackedCapacity = route.steps.length * 2 + 2;
+        address[] memory trackedTokens = new address[](trackedCapacity);
+        uint256 trackedCount = 0;
+        bool producesTokenOut = false;
+
+        trackedCount = _trackToken(inputAsset, trackedTokens, trackedCount);
+        for (uint256 i = 0; i < route.steps.length; i++) {
+            SwapStep memory validationStep = route.steps[i];
+            require(validationStep.path.length == 2, "Invalid path length");
+            trackedCount = _trackToken(validationStep.path[0], trackedTokens, trackedCount);
+            trackedCount = _trackToken(validationStep.path[1], trackedTokens, trackedCount);
+            if (validationStep.path[1] == route.tokenOut) {
+                producesTokenOut = true;
+            }
+        }
+
+        require(producesTokenOut, "Route never outputs tokenOut");
+
+        uint256[] memory trackedBalancesBefore;
 
         // Transfer tokens from user
         if (route.tokenIn != address(0) && route.tokenIn != address(weth)) {
@@ -111,6 +133,11 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
                     route.amountIn
                 );
             }
+        }
+
+        trackedBalancesBefore = new uint256[](trackedCount);
+        for (uint256 i = 0; i < trackedCount; i++) {
+            trackedBalancesBefore[i] = _snapshotBalance(trackedTokens[i]);
         }
 
         SwapExecutionContext memory ctx;
@@ -148,7 +175,6 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         require(ctx.totalAmountOut >= route.amountOutMin, "Slippage exceeded");
 
-        require(route.destination != address(0), "Destination cannot be empty");
         // Transfer final output tokens to user
         if (route.tokenOut == address(weth) && route.isETHOut) {
             weth.withdraw(ctx.totalAmountOut);
@@ -168,6 +194,20 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
                 require(refundSuccess, "Failed to refund PLS");
             } else {
                 IERC20(inputAsset).safeTransfer(route.destination, leftoverInput);
+            }
+        }
+
+        for (uint256 i = 0; i < trackedCount; i++) {
+            address trackedToken = trackedTokens[i];
+            if (trackedToken == route.tokenOut || trackedToken == inputAsset) {
+                continue;
+            }
+
+            uint256 balanceBefore = trackedBalancesBefore[i];
+            uint256 balanceAfter = _snapshotBalance(trackedToken);
+            if (balanceAfter > balanceBefore) {
+                uint256 surplus = balanceAfter - balanceBefore;
+                _returnToken(trackedToken, route.destination, surplus);
             }
         }
     }
@@ -362,6 +402,33 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             return address(this).balance;
         } else {
             return IERC20(token).balanceOf(address(this));
+        }
+    }
+
+    function _trackToken(
+        address token,
+        address[] memory tokens,
+        uint256 count
+    ) internal pure returns (uint256) {
+        for (uint256 i = 0; i < count; i++) {
+            if (tokens[i] == token) {
+                return count;
+            }
+        }
+        tokens[count] = token;
+        return count + 1;
+    }
+
+    function _returnToken(address token, address destination, uint256 amount) internal {
+        if (amount == 0) {
+            return;
+        }
+
+        if (token == address(0)) {
+            (bool success, ) = destination.call{value: amount}("");
+            require(success, "Failed to sweep PLS");
+        } else {
+            IERC20(token).safeTransfer(destination, amount);
         }
     }
 

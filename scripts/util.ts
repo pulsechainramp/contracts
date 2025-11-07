@@ -89,14 +89,33 @@ export const correctDexName = (dex: string) => {
 	return dex;
 }
 
-export const generateSwapRoute = async () => {
+const DEFAULT_MIN_OUTPUT_BPS = 99_000n;
+const BPS_DENOMINATOR = 100_000n;
+
+type GenerateSwapRouteOptions = {
+	minOutputBps?: number;
+	amountOutMin?: BigNumberish;
+};
+
+export const generateSwapRoute = async (options: GenerateSwapRouteOptions = {}) => {
 	const { srcToken, destToken, route: { paths, swaps } } = responseData1;
+	const amountIn = ethers.parseEther('1000');
+	const configuredBps = options.minOutputBps !== undefined ? BigInt(options.minOutputBps) : DEFAULT_MIN_OUTPUT_BPS;
+	if (configuredBps <= 0n || configuredBps > BPS_DENOMINATOR) {
+		throw new Error("minOutputBps must be between 1 and 100000");
+	}
+	const computedAmountOutMin = options.amountOutMin !== undefined
+		? ethers.toBigInt(options.amountOutMin)
+		: (amountIn * configuredBps) / BPS_DENOMINATOR;
+	if (computedAmountOutMin <= 0n) {
+		throw new Error("amountOutMin must be positive");
+	}
 	// Convert paths and swaps into steps
 	const route: SwapRoute = {
 		steps: [],
 		deadline: Math.floor(Date.now() / 1000 + 1000 * 10),
-		amountIn: ethers.parseEther('1000').toString(),
-		amountOutMin: ethers.parseEther('0').toString(),
+		amountIn: amountIn.toString(),
+		amountOutMin: computedAmountOutMin.toString(),
 		parentGroups: [],
 		groupCount: 0,
 		destination: ethers.ZeroAddress,

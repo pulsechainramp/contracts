@@ -34,6 +34,7 @@ describe("SwapManager input reconciliation", () => {
       .setDexRouters(["pulsexV2"], [await mockRouter.getAddress()]);
 
     const amountIn = ethers.parseUnits("100", 18);
+    const expectedStepAmount = ethers.parseUnits("1", 18);
     await tokenIn.mint(await affiliateRouter.getAddress(), amountIn);
     await tokenIn.connect(affiliateRouter).approve(await swapManager.getAddress(), amountIn);
 
@@ -58,7 +59,7 @@ describe("SwapManager input reconciliation", () => {
       groupCount: 2n,
       deadline,
       amountIn,
-      amountOutMin: 0n,
+      amountOutMin: expectedStepAmount,
       isETHOut: false,
     };
 
@@ -68,7 +69,6 @@ describe("SwapManager input reconciliation", () => {
       .to.emit(tokenOut, "Transfer")
       .withArgs(await swapManager.getAddress(), await destination.getAddress(), ethers.parseUnits("1", 18));
 
-    const expectedStepAmount = ethers.parseUnits("1", 18);
     const expectedLeftover = amountIn - expectedStepAmount;
     expect(await tokenIn.balanceOf(await destination.getAddress())).to.equal(expectedLeftover);
     expect(await tokenOut.balanceOf(await destination.getAddress())).to.equal(expectedStepAmount);

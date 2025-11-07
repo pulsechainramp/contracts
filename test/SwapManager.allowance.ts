@@ -60,7 +60,7 @@ describe("SwapManager allowance handling", () => {
       groupCount: 2n,
       deadline,
       amountIn,
-      amountOutMin: 0n,
+      amountOutMin: amountIn,
       isETHOut: false,
     };
 

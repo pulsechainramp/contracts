@@ -25,7 +25,7 @@ const encodeRoute = (overrides: Partial<Record<string, unknown>> = {}) => {
     groupCount: 1n,
     deadline: 0n,
     amountIn: 1n,
-    amountOutMin: 0n,
+    amountOutMin: 1n,
     isETHOut: false,
   };
 

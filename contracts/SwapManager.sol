@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 import "hardhat/console.sol";
 
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IPulseXRouter02} from "./interfaces/pulsex/IPulseXRouter.sol";
@@ -15,9 +15,8 @@ import {IPulseXStableSwapPool} from "./interfaces/pulsex/IPulseXStableSwapPool.s
 import {ITideVault} from "./interfaces/tide/ITideVault.sol";
 import {IAsset} from "./interfaces/phux/IAsset.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
-import "hardhat/console.sol";
 
-contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
+contract SwapManager is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // DEX router addresses
@@ -64,11 +63,9 @@ contract SwapManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint256 stepOutput;
     }
 
-    function initialize() external initializer {
-        weth = IWETH9(0xA1077a294dDE1B09bB078844df40758a5D0f9a27);
-
-        __Ownable_init(msg.sender);
-        __ReentrancyGuard_init();
+    constructor(address _weth) Ownable(msg.sender) {
+        require(_weth != address(0), "Invalid WETH address");
+        weth = IWETH9(_weth);
     }
 
     function setDexRouters(

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -14,7 +14,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @dev Router contract that takes 3% referral fees and executes swaps through SwapManager
  * Contract parameters are encrypted to prevent easy interpretation by competitors
  */
-contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable {
+contract AffiliateRouter is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public defaultFeeBasisPoints;
@@ -78,12 +78,9 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @dev Initialize the contract
      * @param _swapManager Address of the SwapManager contract
      */
-    function initialize(
+    constructor(
         address _swapManager
-    ) external initializer {
-        __Ownable_init(msg.sender);
-        __ReentrancyGuard_init();
-        
+    ) Ownable(msg.sender) {
         require(_swapManager != address(0), "Invalid swap manager");
         
         swapManager = ISwapManager(_swapManager);

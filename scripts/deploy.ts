@@ -1,8 +1,8 @@
-import { ethers, network, upgrades } from "hardhat";
+import { ethers, network } from "hardhat";
 import fs from "fs";
 import hre from "hardhat";
 import { SwapManager, AffiliateRouter, IERC20 } from "../typechain-types";
-import { executeTx, generateSwapRoute, replaceTx, verifyProxyImplementation, waitFor } from "./util";
+import { executeTx, generateSwapRoute, replaceTx, waitFor } from "./util";
 import { responseData } from "./data";
 
 async function main() {
@@ -29,19 +29,11 @@ async function main() {
   console.log("Deployer address:", deployer.address);
 
   const SwapManagerFactory = await ethers.getContractFactory("SwapManager");
-  // const SwapManager = await upgrades.deployProxy(SwapManagerFactory, [])
-  // await SwapManager.waitForDeployment()
-  // const SwapManager = await upgrades.upgradeProxy(SwapManagerAddress, SwapManagerFactory);
-  // await SwapManager.waitForDeployment();
   const SwapManager = SwapManagerFactory.attach(SwapManagerAddress) as SwapManager;
   console.log("SwapManager deployed to:", await SwapManager.getAddress());
 
   const AffiliateRouterFactory = await ethers.getContractFactory("AffiliateRouter");
-  // const AffiliateRouter = await upgrades.deployProxy(AffiliateRouterFactory, [await SwapManager.getAddress()]) as AffiliateRouter;
-  // await AffiliateRouter.waitForDeployment()
-  const AffiliateRouter = await upgrades.upgradeProxy(AffiliateRouterAddress, AffiliateRouterFactory);
-  await AffiliateRouter.waitForDeployment();
-  // const AffiliateRouter = AffiliateRouterFactory.attach(AffiliateRouterAddress) as AffiliateRouter;
+  const AffiliateRouter = AffiliateRouterFactory.attach(AffiliateRouterAddress) as AffiliateRouter;
   console.log("AffiliateRouter deployed to:", await AffiliateRouter.getAddress());
 
   // await SwapManager.connect(deployer).setAffiliateRouter(await AffiliateRouter.getAddress());
@@ -104,8 +96,6 @@ async function main() {
   // console.log(result);
 
   // await waitFor(8);
-  // await verifyProxyImplementation(await SwapManager.getAddress());
-  // await verifyProxyImplementation(await AffiliateRouter.getAddress());
 }
 
 // We recommend this pattern to be able to use async/await everywhere

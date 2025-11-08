@@ -21,10 +21,6 @@ contract MockSwapManager is ISwapManager {
         uint256 msgValue
     );
 
-    function initialize(address _affiliateRouter) external override {
-        affiliateRouter = _affiliateRouter;
-    }
-
     function setDexRouters(string[] calldata, address[] calldata) external override {}
 
     function executeSwap(bytes calldata routeBytes) external payable override {

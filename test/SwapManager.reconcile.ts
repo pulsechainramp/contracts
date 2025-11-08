@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
 
 const routeType =
   "tuple(tuple(string dex,address[] path,address pool,uint256 percent,uint256 groupId,uint256 parentGroupId,bytes userData)[] steps,tuple(uint256 id,uint256 percent)[] parentGroups,address destination,address tokenIn,address tokenOut,uint256 groupCount,uint256 deadline,uint256 amountIn,uint256 amountOutMin,bool isETHOut)";
@@ -24,8 +24,12 @@ describe("SwapManager input reconciliation", () => {
     const mockRouter = await MockRouter.deploy();
     await mockRouter.waitForDeployment();
 
+    const MockWETH = await ethers.getContractFactory("MockWETH");
+    const mockWeth = await MockWETH.deploy();
+    await mockWeth.waitForDeployment();
+
     const SwapManager = await ethers.getContractFactory("SwapManager");
-    const swapManager = await upgrades.deployProxy(SwapManager, []);
+    const swapManager = await SwapManager.deploy(await mockWeth.getAddress());
     await swapManager.waitForDeployment();
 
     await swapManager.connect(owner).setAffiliateRouter(await affiliateRouter.getAddress());

@@ -78,7 +78,7 @@ pulse: {
 The deployment script (`scripts/deploy.ts`) contains the following key components:
 
 1. **Contract Addresses** - Pre-deployed contract addresses for DEX routers
-2. **Deployment Logic** - Proxy deployment using OpenZeppelin upgrades
+2. **Deployment Logic** - Constructor-based deployment with standard OpenZeppelin contracts
 3. **Configuration** - DEX router setup and verification
 
 ### Step 2: Deploy Core Contracts
@@ -86,12 +86,12 @@ The deployment script (`scripts/deploy.ts`) contains the following key component
 #### Deploy SwapManager
 
 ```bash
-# Deploy SwapManager as upgradeable proxy
+# Deploy SwapManager (pass WPLS/WETH address via env or script constant)
 npx hardhat run scripts/deploy.ts --network pulse
 ```
 
 The SwapManager contract:
-- Uses OpenZeppelin upgradeable contracts
+- Uses standard OpenZeppelin contracts (no proxy/initializer)
 - Initializes with WPLS address: `0xA1077a294dDE1B09bB078844df40758a5D0f9a27`
 - Implements reentrancy protection
 - Supports complex multi-step swap routing
@@ -142,7 +142,7 @@ await executeTx(SwapManager.connect(deployer).setAffiliateRouter(AffiliateRouter
 - **Reentrancy Protection** - All external calls protected
 - **Access Control** - Owner-only functions for critical operations
 - **Pausable** - Emergency pause functionality
-- **Upgradeable** - Contracts can be upgraded for improvements
+- **Immutable** - Contracts must be redeployed for improvements; no proxy admin exists
 
 ## Usage Examples
 
@@ -209,7 +209,7 @@ Update hardhat.config.ts
 ### Compose Test script in `test` folder
 
 ```typescript
-import { ethers, upgrades, network } from "hardhat";
+import { ethers, network } from "hardhat";
 import { AffiliateRouter, SwapManager } from "../typechain-types";
 import dotenv from "dotenv";
 import { ContractTransaction, Wallet } from "ethers";
@@ -225,7 +225,7 @@ describe("SwapManager", () => {
     const AffiliateRouterAddress = "0x85C4cF58F80d042A2f415343De69DB3B1D7A03a0";
 
     const SwapManagerFactory = await ethers.getContractFactory("SwapManager", signer);
-    const SwapManager = await upgrades.upgradeProxy(SwapManagerAddress, SwapManagerFactory);
+    const SwapManager = SwapManagerFactory.attach(SwapManagerAddress);
     await SwapManager.waitForDeployment();
     console.log("SwapManager deployed to:", await SwapManager.getAddress());
   

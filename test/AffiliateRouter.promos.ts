@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
 
 const routeType =
   "tuple(tuple(string dex,address[] path,address pool,uint256 percent,uint256 groupId,uint256 parentGroupId,bytes userData)[] steps,tuple(uint256 id,uint256 percent)[] parentGroups,address destination,address tokenIn,address tokenOut,uint256 groupCount,uint256 deadline,uint256 amountIn,uint256 amountOutMin,bool isETHOut)";
@@ -36,7 +36,7 @@ describe("AffiliateRouter promos", () => {
     await mockSwapManager.waitForDeployment();
 
     const AffiliateRouter = await ethers.getContractFactory("AffiliateRouter");
-    const router = await upgrades.deployProxy(AffiliateRouter, [await mockSwapManager.getAddress()]);
+    const router = await AffiliateRouter.deploy(await mockSwapManager.getAddress());
     await router.waitForDeployment();
 
     await mockSwapManager.setAffiliateRouter(await router.getAddress());

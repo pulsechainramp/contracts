@@ -1,5 +1,4 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers"
-import { getImplementationAddressFromProxy } from "@openzeppelin/upgrades-core"
 import { BigNumberish, ContractTransaction, ContractTransactionResponse, ethers } from "ethers"
 import fs from "fs"
 import hre from "hardhat"
@@ -26,11 +25,6 @@ export const verify = async (addr: string, args: any[], contract: any = undefine
 			throw ex
 		}
 	}
-}
-
-export const verifyProxyImplementation = async (addr: string, contract: any = undefined) => {
-	const implementationAddress = await getImplementationAddressFromProxy(hre.network.provider, addr)
-	await verify(implementationAddress as string, [], contract)
 }
 
 export const verifyPulseContract = async (promise: Promise<any>) => {

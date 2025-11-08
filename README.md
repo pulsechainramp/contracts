@@ -1,5 +1,5 @@
 # PulseChain Aggregator Contracts
-Upgradeable smart contracts powering PulseChain swap aggregation with referral rewards.
+Smart contracts powering PulseChain swap aggregation with referral rewards.
 
 ## TL;DR (Quickstart)
 
@@ -14,8 +14,8 @@ node generateEnv.js
 # 3) Compile everything (syncs shared ABIs)
 npm run compile
 
-# 4) Dry-run proxy deployment on the in-memory Hardhat network
-npx hardhat run scripts/deploy-local-proxies.ts --network hardhat
+# 4) Spin up local deployments on the in-memory Hardhat network
+npx hardhat run scripts/deploy-local.ts --network hardhat
 ```
 
 **Requirements:** Node.js 20+, npm 10+, Git  
@@ -24,7 +24,7 @@ npx hardhat run scripts/deploy-local-proxies.ts --network hardhat
 ## What's Inside (Features)
 - **SwapManager aggregation** - Routes swaps across PulseX, 9inch, Phux, Tide, and more using grouped multi-hop encoding.
 - **Affiliate incentives** - AffiliateRouter tracks referrers, takes basis-point fees, and pays balances per token bucket.
-- **Upgradeable control plane** - OpenZeppelin proxies with owner-only administration, pausable execution, and reentrancy guards.
+- **Contract architecture** - Immutable Ownable deployments with owner-only administration and built-in reentrancy guards.
 
 
 ## Installation & Setup
@@ -51,9 +51,8 @@ npm run compile
 
 ### CLI
 ```bash
-npx hardhat run scripts/deploy-local-proxies.ts --network pulse
+npx hardhat run scripts/deploy-local.ts --network pulse
 npx hardhat run scripts/deploy.ts --network pulse
-npx hardhat run scripts/upgrade-affiliate-router-proxy.ts --network pulse
 npx hardhat console --network pulse
 ```
 
@@ -137,9 +136,8 @@ contracts/
 **Key scripts**
 | Script | What it does |
 |---|---|
-| `scripts/deploy-local-proxies.ts` | Deploys fresh SwapManager and AffiliateRouter proxies on Hardhat and wires them together. |
-| `scripts/deploy.ts` | Upgrades live proxies, sets DEX routers, and includes sample swap/approval utilities. |
-| `scripts/upgrade-affiliate-router-proxy.ts` | Upgrades the AffiliateRouter proxy implementation in place. |
+| `scripts/deploy-local.ts` | Deploys fresh SwapManager + AffiliateRouter instances on Hardhat and wires them together. |
+| `scripts/deploy.ts` | Reconfigures live contracts (set routers, approvals, helper workflows). |
 | `scripts/util.ts` | Helper utilities for verification, swap route encoding, and transaction execution. |
 
 ## Architecture & Design
@@ -147,7 +145,7 @@ contracts/
 - **AffiliateRouter** enforces referral relationships, basis-point fees, and withdrawal buckets per token.
 - **Interfaces** cover PulseX, 9inch, Phux, Tide, and ERC20 semantics for safe external calls.
 - **Upgradability** relies on OpenZeppelin `OwnableUpgradeable` + `UUPS` proxies handled through Hardhat upgrades.
-- **Safety** features include strict input validation, SafeERC20 transfers, and reentrancy guards; the router intentionally runs without a pause hook, so incident response relies on UI feature flags plus upgrades.
+- **Safety** features include strict input validation, SafeERC20 transfers, and ReentrancyGuard protection; the router intentionally runs without a pause hook, so incident response relies on UI/API feature flags and new deployments when needed.
 
 ## Testing & Quality
 - **Test types:** Not created yet; add unit/integration coverage before shipping changes.
@@ -158,11 +156,11 @@ contracts/
 - **Secrets:** Managed via `.env` (`dotenv/config`), never commit live keys.
 - **Auth:** Owner-only admin on routers and fee configuration; upgrade operations gated to owner.
 - **Validation:** Extensive `require` guards on route encodings, percentages, and referral flows.
-- **Reentrancy:** `ReentrancyGuardUpgradeable` protects swap execution and payouts; there is no on-chain pause switch, so disable flows at the UI/API layer if an incident occurs.
+- **Reentrancy:** `ReentrancyGuard` protects swap execution and payouts; there is no on-chain pause switch, so disable flows at the UI/API layer if an incident occurs.
 
 ## Deployment
 - **Environments:** `hardhat` (PulseChain fork), `local` (31337), `pulse` (369 mainnet), `monad` testnet (10143).
-- **Proxies:** Managed via OpenZeppelin upgrades (`upgrades.deployProxy`, `upgrades.upgradeProxy`).
+- **Contracts:** Deploy `SwapManager` (passing the WPLS/WETH address) and then `AffiliateRouter` (passing the SwapManager address); wire them via `setAffiliateRouter`.
 - **Verification:** `npx hardhat verify --network pulse 0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5`
 - **Post-deploy:** Update DEX router addresses and affiliate defaults via Hardhat console or `scripts/deploy.ts`.
 

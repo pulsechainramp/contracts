@@ -44,7 +44,6 @@ interface ISwapManager {
     function weth() external view returns (IWETH9);
 
     // Functions
-    function initialize(address _affiliateRouter) external;
     function setDexRouters(string[] calldata keys, address[] calldata routers) external;
     function executeSwap(bytes calldata routeBytes) external payable;
     function setAffiliateRouter(address _affiliateRouter) external;

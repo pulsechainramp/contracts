@@ -46,7 +46,7 @@ describe("AffiliateRouter referral creation fee gate", () => {
     const { router } = await deployRouter();
     const [, user] = await ethers.getSigners();
 
-    expect(await router.defaultFeeBasisPoints()).to.equal(30);
+    expect(await router.defaultFeeBasisPoints()).to.equal(100);
     expect(await router.referralCreationFee()).to.equal(0);
     expect(await router.referralFeeRecipient()).to.equal(await router.owner());
 
@@ -109,28 +109,6 @@ describe("AffiliateRouter referral creation fee gate", () => {
 
     await expect(router.connect(owner).setReferralFeeRecipient(ethers.ZeroAddress)).to.be.revertedWith(
       "Invalid fee recipient"
-    );
-  });
-
-  it("allows owner to update default fee basis points", async () => {
-    const { router } = await deployRouter();
-    const [owner, outsider] = await ethers.getSigners();
-
-    expect(await router.defaultFeeBasisPoints()).to.equal(30);
-
-    await expect(router.connect(outsider).setDefaultFeeBasisPoints(50)).to.be.revertedWithCustomError(
-      router,
-      "OwnableUnauthorizedAccount"
-    ).withArgs(await outsider.getAddress());
-
-    await expect(router.connect(owner).setDefaultFeeBasisPoints(25))
-      .to.emit(router, "DefaultFeeBasisPointsSet")
-      .withArgs(25);
-
-    expect(await router.defaultFeeBasisPoints()).to.equal(25);
-
-    await expect(router.connect(owner).setDefaultFeeBasisPoints(5)).to.be.revertedWith(
-      "Not valid default bps"
     );
   });
 

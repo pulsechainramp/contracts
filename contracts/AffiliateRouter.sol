@@ -5,7 +5,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ISwapManager} from "./interfaces/ISwapManager.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -15,7 +14,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @dev Router contract that takes 3% referral fees and executes swaps through SwapManager
  * Contract parameters are encrypted to prevent easy interpretation by competitors
  */
-contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
+contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     uint256 public defaultFeeBasisPoints;
@@ -41,8 +40,12 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     uint256 public referralCreationFee;
     mapping(address => bool) public referralCreationFeePaid;
     address payable public referralFeeRecipient;
-    uint16 public constant MAX_PROMO_BPS = 300;
-    uint16 public constant TAIL_BPS = 30;
+    uint256 public constant MAX_REFERRAL_CREATION_FEE = 100_000 ether;
+    uint16 public constant PROMO_CAP_MIN_BPS = 100; // 1.0%
+    uint16 public constant PROMO_CAP_MAX_BPS = 300; // 3.0%
+    uint16 public constant DEFAULT_TAIL_BPS = 100; // 1.0%
+    uint16 public maxPromoBps;
+    uint16 public tailBps;
     uint8 public constant PROMO_SWAP_COUNT = 3;
     
     // Events
@@ -58,7 +61,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     event ReferralCreationFeePaid(address indexed payer, uint256 amount);
     event ReferralCreationFeeUpdated(uint256 oldFee, uint256 newFee);
     event ReferralFeeRecipientUpdated(address indexed newRecipient);
-    event DefaultFeeBasisPointsSet(uint256 newFeeBasisPoints);
+    event MaxPromoBpsUpdated(uint16 newMaxPromoBps);
 
     // Modifiers
     modifier onlyValidReferrer(address referrer) {
@@ -80,17 +83,18 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     ) external initializer {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
-        __Pausable_init();
         
         require(_swapManager != address(0), "Invalid swap manager");
         
         swapManager = ISwapManager(_swapManager);
-        defaultFeeBasisPoints = 30; // 0.3%
+        defaultFeeBasisPoints = 100; // 1.0%
         totalBasisPoints = 10000; // 100%
         defaultReferrer = address(0);
-        defaultReferrerBasisPoints = 30; // 0.3%
+        defaultReferrerBasisPoints = 100; // 1.0%
         referralCreationFee = 0;
         referralFeeRecipient = payable(msg.sender);
+        maxPromoBps = PROMO_CAP_MAX_BPS;
+        tailBps = DEFAULT_TAIL_BPS;
     }
     
     /**
@@ -101,7 +105,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     function executeSwap(
         bytes calldata routeBytes,
         address referrerCode
-    ) external payable nonReentrant whenNotPaused onlyValidSwap(routeBytes) {
+    ) external payable nonReentrant onlyValidSwap(routeBytes) {
         ISwapManager.SwapRoute memory route = abi.decode(routeBytes, (ISwapManager.SwapRoute));
 
         bool isEthSwap = route.tokenIn == address(0) ||
@@ -259,7 +263,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
 
         _requireEligibleReferrer(ref);
 
-        uint16 promoBps = affiliateBps > MAX_PROMO_BPS ? MAX_PROMO_BPS : affiliateBps;
+        uint16 promoBps = affiliateBps > maxPromoBps ? maxPromoBps : affiliateBps;
 
         promo.firstReferrer = ref;
         promo.boundAt = uint64(block.timestamp);
@@ -287,14 +291,14 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         address legacyRef = userReferrer[user];
         if (legacyRef != address(0)) {
             uint16 legacyBps = uint16(getFeeBasisPoints(legacyRef));
-            uint16 tailBps = legacyBps < TAIL_BPS ? legacyBps : TAIL_BPS;
-            return (legacyRef, tailBps, false);
+            uint16 effectiveTail = legacyBps < tailBps ? legacyBps : tailBps;
+            return (legacyRef, effectiveTail, false);
         }
 
         if (defaultReferrer != address(0)) {
-            uint16 defaultTail = defaultReferrerBasisPoints <= TAIL_BPS
+            uint16 defaultTail = defaultReferrerBasisPoints <= tailBps
                 ? uint16(defaultReferrerBasisPoints)
-                : TAIL_BPS;
+                : tailBps;
             return (defaultReferrer, defaultTail, false);
         }
 
@@ -310,14 +314,14 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
 
         if (promo.promoRemaining > 0) {
             uint16 currentBps = uint16(getFeeBasisPoints(promo.firstReferrer));
-            uint16 cappedPromo = currentBps < MAX_PROMO_BPS ? currentBps : MAX_PROMO_BPS;
+            uint16 cappedPromo = currentBps < maxPromoBps ? currentBps : maxPromoBps;
             return (cappedPromo, true);
         }
 
         uint16 referrerBps = uint16(getFeeBasisPoints(promo.firstReferrer));
-        uint16 tailBps = referrerBps < TAIL_BPS ? referrerBps : TAIL_BPS;
+        uint16 effectiveTail = referrerBps < tailBps ? referrerBps : tailBps;
 
-        return (tailBps, false);
+        return (effectiveTail, false);
     }
 
     function _afterSwapConsumePromo(address user, bool consumed) internal {
@@ -390,25 +394,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         emit DefaultReferrerUpdated(_defaultReferrer, defaultReferrerBasisPoints);
     }
 
-    /**
-     * @dev Update the default referrer fee basis points (owner only)
-     * @param newFeeBasisPoints New fee basis points for the default referrer
-     */
-    function setDefaultReferrerBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
-        require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
-        require(newFeeBasisPoints <= 30, "Default fee too high");
-        defaultReferrerBasisPoints = newFeeBasisPoints;
-        emit DefaultReferrerUpdated(defaultReferrer, newFeeBasisPoints);
-    }
-
-    function setDefaultFeeBasisPoints(uint256 newFeeBasisPoints) external onlyOwner {
-        require(newFeeBasisPoints <= totalBasisPoints, "Fee cannot exceed total");
-        require(newFeeBasisPoints >= 10 && newFeeBasisPoints <= 300, "Not valid default bps");
-        defaultFeeBasisPoints = newFeeBasisPoints;
-        emit DefaultFeeBasisPointsSet(newFeeBasisPoints);
-    }
-
-    function payReferralCreationFee() external payable nonReentrant whenNotPaused {
+    function payReferralCreationFee() external payable nonReentrant {
         require(!referralCreationFeePaid[msg.sender], "Referral creation fee already paid");
 
         uint256 fee = referralCreationFee;
@@ -432,6 +418,7 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
     }
 
     function setReferralCreationFee(uint256 newFee) external onlyOwner {
+        require(newFee <= MAX_REFERRAL_CREATION_FEE, "Fee too high");
         uint256 oldFee = referralCreationFee;
         referralCreationFee = newFee;
         emit ReferralCreationFeeUpdated(oldFee, newFee);
@@ -443,23 +430,16 @@ contract AffiliateRouter is OwnableUpgradeable, ReentrancyGuardUpgradeable, Paus
         emit ReferralFeeRecipientUpdated(newRecipient);
     }
 
+    function setMaxPromoBps(uint16 newMaxPromoBps) external onlyOwner {
+        require(newMaxPromoBps >= PROMO_CAP_MIN_BPS && newMaxPromoBps <= PROMO_CAP_MAX_BPS, "Invalid promo cap");
+        maxPromoBps = newMaxPromoBps;
+        emit MaxPromoBpsUpdated(newMaxPromoBps);
+    }
+
     function hasPaidReferralCreationFee(address account) external view returns (bool) {
         return referralCreationFeePaid[account];
     }
     
-    /**
-     * @dev Pause the contract (owner only)
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-    
-    /**
-     * @dev Unpause the contract (owner only)
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-    }
     
     /**
      * @dev Receive ETH

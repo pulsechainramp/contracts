@@ -11,8 +11,8 @@ npm install
 # 2) Generate a throwaway key for local runs (replace before mainnet)
 node generateEnv.js
 
-# 3) Compile everything
-npx hardhat compile
+# 3) Compile everything (syncs shared ABIs)
+npm run compile
 
 # 4) Dry-run proxy deployment on the in-memory Hardhat network
 npx hardhat run scripts/deploy-local-proxies.ts --network hardhat
@@ -37,7 +37,7 @@ npx hardhat run scripts/deploy-local-proxies.ts --network hardhat
 ### Local Development
 ```bash
 npm install
-npx hardhat compile
+npm run compile
 ```
 
 ### Configuration (ENV)
@@ -99,24 +99,25 @@ const router = await ethers.getContractAt("AffiliateRouter", "0x7872B42710294ce1
 await router.setDefaultReferrer("0x137e0A3205023f78535Ed303DAED89FCde8d87c2"); 
 await router.defaultReferrer();
 
-await router.setDefaultReferrerBasisPoints(30);
-await router.defaultReferrerBasisPoints();
-
 // Withdraw native PLS (ZeroAddress) and WPLS buckets; append ERC-20 addresses to include other tokens
 await router.withdrawReferralEarnings([ethers.ZeroAddress, "0xA1077a294dDE1B09bB078844df40758a5D0f9a27"]);
 
 // --- Referral creation gate ---
 // Check or update the one-time fee required before creating a referral code.
-await router.referralCreationFee();                   // current gate fee in wei
-await router.setReferralCreationFee(ethers.parseEther("50")); // owner: set to 50 PLS
+await router.referralCreationFee();                   // current gate fee in wei (max 100k PLS)
+await router.setReferralCreationFee(ethers.parseEther("50")); // owner: set to 50 PLS (<= 100k PLS cap)
 
 // Redirect gate proceeds
 await router.referralFeeRecipient();
 await router.setReferralFeeRecipient("0xTreasuryWallet");
 
-// Inspect or update the default referral share applied to new wallets
-await router.defaultFeeBasisPoints();                 // defaults to 30 (0.30%)
-await router.setDefaultFeeBasisPoints(40);            // owner: update global default to 0.40%
+// Inspect the default referral share applied to new wallets
+await router.defaultFeeBasisPoints();                 // defaults to 100 (1.00%)
+
+// Admin-only promo cap; tail is fixed at 1.00% once promos expire
+await router.maxPromoBps();                           // defaults to 300 (3.00%)
+await router.setMaxPromoBps(200);                     // owner: cap first-three-swaps at 2.00% (1.0%-3.0% allowed)
+await router.tailBps();                               // read-only 100 (1.00%) tail cap
 
 // See if a wallet has already paid the creation fee gate
 await router.referralCreationFeePaid("0xSomeWallet"); // true/false
@@ -146,18 +147,18 @@ contracts/
 - **AffiliateRouter** enforces referral relationships, basis-point fees, and withdrawal buckets per token.
 - **Interfaces** cover PulseX, 9inch, Phux, Tide, and ERC20 semantics for safe external calls.
 - **Upgradability** relies on OpenZeppelin `OwnableUpgradeable` + `UUPS` proxies handled through Hardhat upgrades.
-- **Safety** features include pausing, reentrancy guards, input validation, and SafeERC20 transfers.
+- **Safety** features include strict input validation, SafeERC20 transfers, and reentrancy guards; the router intentionally runs without a pause hook, so incident response relies on UI feature flags plus upgrades.
 
 ## Testing & Quality
 - **Test types:** Not created yet; add unit/integration coverage before shipping changes.
 - **Run:** `npx hardhat test`
-- **Static checks:** `npx hardhat compile` (solc viaIR, optimizer 200 runs)
+- **Static checks:** `npm run compile` (solc viaIR, optimizer 200 runs + ABI sync)
 
 ## Security & Compliance
 - **Secrets:** Managed via `.env` (`dotenv/config`), never commit live keys.
 - **Auth:** Owner-only admin on routers and fee configuration; upgrade operations gated to owner.
 - **Validation:** Extensive `require` guards on route encodings, percentages, and referral flows.
-- **Reentrancy/Pause:** `ReentrancyGuardUpgradeable` and `PausableUpgradeable` protect swap execution and payouts.
+- **Reentrancy:** `ReentrancyGuardUpgradeable` protects swap execution and payouts; there is no on-chain pause switch, so disable flows at the UI/API layer if an incident occurs.
 
 ## Deployment
 - **Environments:** `hardhat` (PulseChain fork), `local` (31337), `pulse` (369 mainnet), `monad` testnet (10143).
@@ -171,6 +172,6 @@ contracts/
 - **Verification fails with `Already Verified`:** Safe to ignore; command exits non-zero but deployment is valid.
 
 ## Contributing
-- **Workflow:** Branch, implement, run `npx hardhat compile`, and open a PR when ready.
+- **Workflow:** Branch, implement, run `npm run compile` (includes ABI sync), and open a PR when ready.
 - **Code style:** Follow existing Solidity patterns; keep comments concise and meaningful.
 - **Before review:** Document new scripts in this README and provide reproduction steps for regressions.

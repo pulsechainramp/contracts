@@ -6,7 +6,9 @@
     "patch-package": "8.0.1"
   },
   "scripts": {
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "compile": "hardhat compile && npm run sync-abis",
+    "sync-abis": "node scripts/syncAbis.js"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-ethers": "3.0.8",

@@ -28,7 +28,7 @@ const encodeRoute = (
 };
 
 describe("AffiliateRouter promos", () => {
-  const tailCapBps = 30n;
+  const tailCapBps = 100n;
 
   const deployRouter = async () => {
     const MockSwapManager = await ethers.getContractFactory("MockSwapManager");
@@ -179,12 +179,11 @@ describe("AffiliateRouter promos", () => {
     expect(promo.promoBps).to.equal(150);
   });
 
-  it("uses default referrer tail capped at 0.3%", async () => {
+  it("uses default referrer tail capped at 1.0% by default", async () => {
     const { router, mockSwapManager } = await deployRouter();
     const [owner, , , user] = await ethers.getSigners();
 
     await router.connect(owner).setDefaultReferrer(await owner.getAddress());
-    await router.connect(owner).setDefaultReferrerBasisPoints(25);
 
     const amount = ethers.parseUnits("1", 18);
     const routeBytes = encodeRoute(amount, amount);
@@ -192,7 +191,7 @@ describe("AffiliateRouter promos", () => {
     await router.connect(user).executeSwap(routeBytes, ethers.ZeroAddress, { value: amount });
 
     const earnings = await router.referrerEarnings(await owner.getAddress(), ethers.ZeroAddress);
-    const expected = (amount * 25n) / 10000n;
+    const expected = (amount * tailCapBps) / 10000n;
     expect(earnings).to.equal(expected);
     expect(await mockSwapManager.lastMsgValue()).to.equal(amount - expected);
   });
@@ -259,12 +258,26 @@ describe("AffiliateRouter promos", () => {
     expect(received).to.be.lte(transferAmount);
   });
 
-  it("caps default referrer basis points at 0.3%", async () => {
+  it("allows owner to adjust promo cap within 1.0%-3.0%", async () => {
     const { router } = await deployRouter();
-    const [owner] = await ethers.getSigners();
+    const [owner, , , user] = await ethers.getSigners();
 
-    await expect(router.connect(owner).setDefaultReferrerBasisPoints(40)).to.be.revertedWith(
-      "Default fee too high"
-    );
+    await expect(router.connect(owner).setMaxPromoBps(40)).to.be.revertedWith("Invalid promo cap");
+
+    await expect(router.connect(owner).setMaxPromoBps(150))
+      .to.emit(router, "MaxPromoBpsUpdated")
+      .withArgs(150);
+
+    await router.connect(owner).updateFeeBasisPoints("300");
+
+    const amount = ethers.parseUnits("1", 18);
+    const routeBytes = encodeRoute(amount, amount);
+
+    await router.connect(user).executeSwap(routeBytes, await owner.getAddress(), { value: amount });
+
+    const earnings = await router.referrerEarnings(await owner.getAddress(), ethers.ZeroAddress);
+    const expected = (amount * 150n) / 10000n;
+    expect(earnings).to.equal(expected);
   });
+
 });

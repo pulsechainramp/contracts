@@ -152,14 +152,9 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
             bytes memory newRouteBytes = abi.encode(route);
             swapManager.executeSwap{value: route.amountIn}(newRouteBytes);
         } else {
-            uint256 expectedTransfer = originalAmountIn;
-            if (referrer != address(0) && feeBasisPoints > 0) {
-                expectedTransfer += Math.mulDiv(originalAmountIn, feeBasisPoints, totalBasisPoints);
-            }
-
             IERC20 tokenIn = IERC20(route.tokenIn);
             uint256 balanceBefore = tokenIn.balanceOf(address(this));
-            tokenIn.safeTransferFrom(msg.sender, address(this), expectedTransfer);
+            tokenIn.safeTransferFrom(msg.sender, address(this), originalAmountIn);
             uint256 received = tokenIn.balanceOf(address(this)) - balanceBefore;
             require(received > 0, "No tokens received");
 

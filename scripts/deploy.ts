@@ -11,6 +11,7 @@ async function main() {
   const deployer = accounts[0];
   const SwapManagerAddress = "0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5";
   const AffiliateRouterAddress = "0x7872B42710294ce16fEA60575da45Fde51db78e8";
+  const MulticallAddress = "0x7B65a02f08779355d84c8DE54e59c6390160A0f3";
   const PhuxVaultAddress = "0x7F51AC3df6A034273FB09BB29e383FCF655e473c";
   const PulseXV1RouterAddress = "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02";
   const PulseXV2RouterAddress = "0x165C3410fC91EF562C50559f7d2289fEbed552d9";
@@ -35,6 +36,12 @@ async function main() {
   const AffiliateRouterFactory = await ethers.getContractFactory("AffiliateRouter");
   const AffiliateRouter = AffiliateRouterFactory.attach(AffiliateRouterAddress) as AffiliateRouter;
   console.log("AffiliateRouter deployed to:", await AffiliateRouter.getAddress());
+
+  const MulticallFactory = await ethers.getContractFactory("Multicall");
+  // const Multicall = await MulticallFactory.deploy() as Multicall;
+  // await Multicall.waitForDeployment();
+  const Multicall = MulticallFactory.attach(MulticallAddress) as Multicall;
+  console.log("Multicall deployed to:", await Multicall.getAddress());
 
   // await SwapManager.connect(deployer).setAffiliateRouter(await AffiliateRouter.getAddress());
   // console.log("AffiliateRouter set")

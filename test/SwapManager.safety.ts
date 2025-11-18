@@ -9,15 +9,37 @@ const encodeRoute = (route: any) => {
   return abiCoder.encode([routeType], [route]);
 };
 
+const deploySwapManager = async () => {
+  const MockRouter = await ethers.getContractFactory("MockRouter");
+  const pulsexV1Router = await MockRouter.deploy();
+  await pulsexV1Router.waitForDeployment();
+  const pulsexV2Router = await MockRouter.deploy();
+  await pulsexV2Router.waitForDeployment();
+  const pulsexStablePool = await MockRouter.deploy();
+  await pulsexStablePool.waitForDeployment();
+  const pulsexStablePoolAddress = await pulsexStablePool.getAddress();
+
+  const MockWETH = await ethers.getContractFactory("MockWETH");
+  const mockWeth = await MockWETH.deploy();
+  await mockWeth.waitForDeployment();
+
+  const SwapManager = await ethers.getContractFactory("SwapManager");
+  const swapManager = await SwapManager.deploy(
+    await mockWeth.getAddress(),
+    await pulsexV1Router.getAddress(),
+    await pulsexV2Router.getAddress(),
+    pulsexStablePoolAddress,
+    [],
+    []
+  );
+  await swapManager.waitForDeployment();
+
+  return { swapManager, pulsexStablePool: pulsexStablePoolAddress };
+};
+
 describe("SwapManager safety guards", () => {
   it("rejects routes with zero amountOutMin", async () => {
-    const MockWETH = await ethers.getContractFactory("MockWETH");
-    const mockWeth = await MockWETH.deploy();
-    await mockWeth.waitForDeployment();
-
-    const SwapManager = await ethers.getContractFactory("SwapManager");
-    const swapManager = await SwapManager.deploy(await mockWeth.getAddress());
-    await swapManager.waitForDeployment();
+    const { swapManager } = await deploySwapManager();
 
     const [owner] = await ethers.getSigners();
     await swapManager.setAffiliateRouter(await owner.getAddress());
@@ -56,13 +78,7 @@ describe("SwapManager safety guards", () => {
   });
 
   it("rejects routes that never produce the declared tokenOut", async () => {
-    const MockWETH = await ethers.getContractFactory("MockWETH");
-    const mockWeth = await MockWETH.deploy();
-    await mockWeth.waitForDeployment();
-
-    const SwapManager = await ethers.getContractFactory("SwapManager");
-    const swapManager = await SwapManager.deploy(await mockWeth.getAddress());
-    await swapManager.waitForDeployment();
+    const { swapManager } = await deploySwapManager();
 
     const [owner] = await ethers.getSigners();
     await swapManager.setAffiliateRouter(await owner.getAddress());
@@ -108,6 +124,55 @@ describe("SwapManager safety guards", () => {
     );
   });
 
+  it("rejects PulseX stable steps targeting unexpected pools", async () => {
+    const { swapManager } = await deploySwapManager();
+
+    const [owner] = await ethers.getSigners();
+    await swapManager.setAffiliateRouter(await owner.getAddress());
+
+    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const tokenIn = await MockERC20.deploy("TokenIn", "TIN");
+    await tokenIn.waitForDeployment();
+    const tokenOut = await MockERC20.deploy("TokenOut", "TOUT");
+    await tokenOut.waitForDeployment();
+
+    const amountIn = 1n;
+    await tokenIn.mint(await owner.getAddress(), amountIn);
+    await tokenIn.approve(await swapManager.getAddress(), amountIn);
+
+    const latestBlock = await ethers.provider.getBlock("latest");
+    const deadline = BigInt((latestBlock?.timestamp ?? 0) + 3600);
+
+    const route = {
+      steps: [
+        {
+          dex: "pulsexStable",
+          path: [await tokenIn.getAddress(), await tokenOut.getAddress()],
+          pool: "0x0000000000000000000000000000000000000002",
+          percent: 100_000n,
+          groupId: 0n,
+          parentGroupId: 0n,
+          userData: "0x0000",
+        },
+      ],
+      parentGroups: [{ id: 0n, percent: 100_000n }],
+      destination: await owner.getAddress(),
+      tokenIn: await tokenIn.getAddress(),
+      tokenOut: await tokenOut.getAddress(),
+      groupCount: 1n,
+      deadline,
+      amountIn,
+      amountOutMin: 1n,
+      isETHOut: false,
+    };
+
+    const routeBytes = encodeRoute(route);
+
+    await expect(swapManager.connect(owner).executeSwap(routeBytes)).to.be.revertedWith(
+      "Invalid PulseX stable pool"
+    );
+  });
+
   it("sweeps leftover intermediate tokens back to the destination", async () => {
     const [owner, affiliateRouter, destination] = await ethers.getSigners();
 
@@ -120,21 +185,29 @@ describe("SwapManager safety guards", () => {
     await tokenExtra.waitForDeployment();
 
     const MockRouter = await ethers.getContractFactory("MockRouter");
-    const mockRouter = await MockRouter.deploy();
-    await mockRouter.waitForDeployment();
+    const pulsexV1Router = await MockRouter.deploy();
+    await pulsexV1Router.waitForDeployment();
+    const pulsexV2Router = await MockRouter.deploy();
+    await pulsexV2Router.waitForDeployment();
+    const pulsexStablePool = await MockRouter.deploy();
+    await pulsexStablePool.waitForDeployment();
 
     const MockWETH = await ethers.getContractFactory("MockWETH");
     const mockWeth = await MockWETH.deploy();
     await mockWeth.waitForDeployment();
 
     const SwapManager = await ethers.getContractFactory("SwapManager");
-    const swapManager = await SwapManager.deploy(await mockWeth.getAddress());
+    const swapManager = await SwapManager.deploy(
+      await mockWeth.getAddress(),
+      await pulsexV1Router.getAddress(),
+      await pulsexV2Router.getAddress(),
+      await pulsexStablePool.getAddress(),
+      [],
+      []
+    );
     await swapManager.waitForDeployment();
 
     await swapManager.connect(owner).setAffiliateRouter(await affiliateRouter.getAddress());
-    await swapManager
-      .connect(owner)
-      .setDexRouters(["pulsexV2"], [await mockRouter.getAddress()]);
 
     const amountIn = ethers.parseUnits("100", 18);
     const half = amountIn / 2n;

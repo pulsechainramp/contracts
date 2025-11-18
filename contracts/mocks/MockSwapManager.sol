@@ -21,8 +21,6 @@ contract MockSwapManager is ISwapManager {
         uint256 msgValue
     );
 
-    function setDexRouters(string[] calldata, address[] calldata) external override {}
-
     function executeSwap(bytes calldata routeBytes) external payable override {
         SwapRoute memory route = abi.decode(routeBytes, (SwapRoute));
 

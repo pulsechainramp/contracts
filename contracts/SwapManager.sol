@@ -18,11 +18,26 @@ import {IWETH9} from "./interfaces/IWETH9.sol";
 
 contract SwapManager is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    
-    // DEX router addresses
-    mapping(string => address) public dexRouters;
+
+    bytes32 private constant DEX_HASH_PULSEX_V1 = keccak256("pulsexV1");
+    bytes32 private constant DEX_HASH_PULSEX_V2 = keccak256("pulsexV2");
+    bytes32 private constant DEX_HASH_PULSEX_STABLE = keccak256("pulsexStable");
+    bytes32 private constant DEX_HASH_PHUX = keccak256("phux");
+    bytes32 private constant DEX_HASH_9INCH_V2 = keccak256("9inchV2");
+    bytes32 private constant DEX_HASH_9INCH_V3 = keccak256("9inchV3");
+    bytes32 private constant DEX_HASH_9MM_V2 = keccak256("9mmV2");
+    bytes32 private constant DEX_HASH_9MM_V3 = keccak256("9mmV3");
+    bytes32 private constant DEX_HASH_PDEX_V3 = keccak256("pDexV3");
+    bytes32 private constant DEX_HASH_DEXTOP = keccak256("dexTop");
+    bytes32 private constant DEX_HASH_TIDE = keccak256("tide");
+
+    // Non-PulseX router addresses keyed by dex hash
+    mapping(bytes32 => address) private otherDexRouters;
+    address public immutable pulsexV1Router;
+    address public immutable pulsexV2Router;
+    address public immutable pulsexStablePool;
     address public affiliateRouter;
-    IWETH9 public weth;
+    IWETH9 public immutable weth;
 
     // Struct to represent a single swap step
     struct SwapStep {
@@ -63,22 +78,39 @@ contract SwapManager is Ownable, ReentrancyGuard {
         uint256 stepOutput;
     }
 
-    constructor(address _weth) Ownable(msg.sender) {
+    constructor(
+        address _weth,
+        address _pulsexV1Router,
+        address _pulsexV2Router,
+        address _pulsexStablePool,
+        string[] memory routerKeys,
+        address[] memory routerAddresses
+    ) Ownable(msg.sender) {
         require(_weth != address(0), "Invalid WETH address");
+        require(_pulsexV1Router != address(0), "Invalid PulseX V1 router");
+        require(_pulsexV2Router != address(0), "Invalid PulseX V2 router");
+        require(_pulsexStablePool != address(0), "Invalid PulseX stable pool");
+
         weth = IWETH9(_weth);
+        pulsexV1Router = _pulsexV1Router;
+        pulsexV2Router = _pulsexV2Router;
+        pulsexStablePool = _pulsexStablePool;
+
+        _setInitialRouters(routerKeys, routerAddresses);
     }
 
-    function setDexRouters(
-        string[] calldata keys,
-        address[] calldata routers
-    ) external onlyOwner {
-        require(
-            keys.length == routers.length,
-            "Keys and routers length mismatch"
-        );
-        for (uint256 i = 0; i < keys.length; i++) {
-            dexRouters[keys[i]] = routers[i];
+    function dexRouters(string calldata key) external view returns (address) {
+        bytes32 dexHash = keccak256(bytes(key));
+        if (dexHash == DEX_HASH_PULSEX_V1) {
+            return pulsexV1Router;
         }
+        if (dexHash == DEX_HASH_PULSEX_V2) {
+            return pulsexV2Router;
+        }
+        if (dexHash == DEX_HASH_PULSEX_STABLE) {
+            return pulsexStablePool;
+        }
+        return otherDexRouters[dexHash];
     }
 
     function _executeSwap(SwapRoute memory route) internal {
@@ -220,9 +252,13 @@ contract SwapManager is Ownable, ReentrancyGuard {
         uint256 amountIn,
         uint256 deadline
     ) internal returns (uint256) {
-        address router = dexRouters[step.dex];
         bytes32 dexHash = keccak256(bytes(step.dex));
-        require(router != address(0), "DEX not supported");
+        address router = _resolveRouter(dexHash);
+        if (dexHash != DEX_HASH_PULSEX_STABLE) {
+            require(router != address(0), "DEX not supported");
+        } else {
+            require(step.pool == pulsexStablePool, "Invalid PulseX stable pool");
+        }
         require(step.path.length == 2, "Invalid path length");
         require(step.path[0] != step.path[1], "Invalid path");
 
@@ -375,7 +411,7 @@ contract SwapManager is Ownable, ReentrancyGuard {
     }
 
     function swapTideVaultHook(address pool, address tokenIn, address tokenOut, uint256 amountIn) external {
-        address tideVault = dexRouters["tide"];
+        address tideVault = otherDexRouters[DEX_HASH_TIDE];
         require(msg.sender == tideVault, "Only tide vault can call this function");
 
         (, , uint256 amountOutRaw) = ITideVault(tideVault).swap(
@@ -400,6 +436,39 @@ contract SwapManager is Ownable, ReentrancyGuard {
         } else {
             return IERC20(token).balanceOf(address(this));
         }
+    }
+
+    function _setInitialRouters(
+        string[] memory keys,
+        address[] memory routers
+    ) internal {
+        require(keys.length == routers.length, "Keys and routers length mismatch");
+        for (uint256 i = 0; i < keys.length; i++) {
+            bytes32 dexHash = keccak256(bytes(keys[i]));
+            require(!_isPulseXHash(dexHash), "PulseX routers are immutable");
+            address router = routers[i];
+            require(router != address(0), "Router cannot be zero");
+            require(otherDexRouters[dexHash] == address(0), "Duplicate DEX key");
+            otherDexRouters[dexHash] = router;
+        }
+    }
+
+    function _resolveRouter(bytes32 dexHash) internal view returns (address) {
+        if (dexHash == DEX_HASH_PULSEX_V1) {
+            return pulsexV1Router;
+        }
+        if (dexHash == DEX_HASH_PULSEX_V2) {
+            return pulsexV2Router;
+        }
+        return otherDexRouters[dexHash];
+    }
+
+    function _isPulseXHash(bytes32 dexHash) internal pure returns (bool) {
+        return (
+            dexHash == DEX_HASH_PULSEX_V1 ||
+            dexHash == DEX_HASH_PULSEX_V2 ||
+            dexHash == DEX_HASH_PULSEX_STABLE
+        );
     }
 
     function _trackToken(

@@ -22,21 +22,29 @@ describe("SwapManager allowance handling", () => {
     await tokenOut.waitForDeployment();
 
     const MockRouter = await ethers.getContractFactory("MockRouter");
-    const mockRouter = await MockRouter.deploy();
-    await mockRouter.waitForDeployment();
+    const pulsexV1Router = await MockRouter.deploy();
+    await pulsexV1Router.waitForDeployment();
+    const pulsexV2Router = await MockRouter.deploy();
+    await pulsexV2Router.waitForDeployment();
+    const pulsexStablePool = await MockRouter.deploy();
+    await pulsexStablePool.waitForDeployment();
 
     const MockWETH = await ethers.getContractFactory("MockWETH");
     const mockWeth = await MockWETH.deploy();
     await mockWeth.waitForDeployment();
 
     const SwapManager = await ethers.getContractFactory("SwapManager");
-    const swapManager = await SwapManager.deploy(await mockWeth.getAddress());
+    const swapManager = await SwapManager.deploy(
+      await mockWeth.getAddress(),
+      await pulsexV1Router.getAddress(),
+      await pulsexV2Router.getAddress(),
+      await pulsexStablePool.getAddress(),
+      [],
+      []
+    );
     await swapManager.waitForDeployment();
 
     await swapManager.connect(owner).setAffiliateRouter(await owner.getAddress());
-    await swapManager
-      .connect(owner)
-      .setDexRouters(["pulsexV2"], [await mockRouter.getAddress()]);
 
     const amountIn = ethers.parseUnits("100", 6);
     await tokenIn.mint(await owner.getAddress(), amountIn * 2n);
@@ -74,7 +82,7 @@ describe("SwapManager allowance handling", () => {
     await expect(swapManager.connect(owner).executeSwap(routeBytes)).to.not.be.reverted;
 
     expect(
-      await tokenIn.allowance(await swapManager.getAddress(), await mockRouter.getAddress())
+      await tokenIn.allowance(await swapManager.getAddress(), await pulsexV2Router.getAddress())
     ).to.equal(0n);
   });
 });

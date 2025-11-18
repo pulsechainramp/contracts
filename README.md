@@ -1,4 +1,4 @@
-# PulseChain Aggregator Contracts
+﻿# PulseChain Aggregator Contracts
 Smart contracts powering PulseChain swap aggregation with referral rewards.
 
 ## TL;DR (Quickstart)
@@ -59,39 +59,8 @@ npx hardhat console --network pulse
 ### Hardhat console snippets
 
 ```javascript
-const manager = await ethers.getContractAt("SwapManager", "0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5");
-
-const keys = [
-  "pulsexV1",
-  "pulsexV2",
-  "9inchV2",
-  "9inchV3",
-  "phux",
-  "9mmV3",
-  "9mmV2",
-  "pulsexStable",
-  "dexTop",
-  "pDexV3",
-  "tide",
-];
-
-const routers = [
-  "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02", // PulseXV1RouterAddress
-  "0x165C3410fC91EF562C50559f7d2289fEbed552d9", // PulseXV2RouterAddress
-  "0xeB45a3c4aedd0F47F345fB4c8A1802BB5740d725", // nineInchV2RouterAddress
-  "0x42556A17EF0Bd815bF21aD628DFd2e2f3b5F9ac7", // nineInchV3RouterAddress
-  "0x7F51AC3df6A034273FB09BB29e383FCF655e473c", // PhuxVaultAddress
-  "0xa9444246d80d6e3496c9242395213b4f22226a59", // nineMMRouterAddress (V3)
-  "0xa9444246d80d6e3496c9242395213b4f22226a59", // nineMMRouterAddress (V2)
-  "0x0000000000000000000000000000000000000001", // PulseX stable pool placeholder
-  "0x1f849694Ef24a2245bCa415FE47500216B24d7FF", // dexTopRouterAddress
-  "0x1eC2eaA62117486c9b2a05F098a7bF2568e19204", // pDexV3RouterAddress
-  "0x634F6B9Cd1f860314871548d2224362825384B2D", // TideVaultAddress
-];
-
-await manager.setDexRouters(keys, routers);
-await manager.dexRouters("pulsexV2")
-
+const manager = await ethers.getContractAt("SwapManager", "0xE38490Fe9866889b24CA15EBdce6F6E8c5");
+await manager.dexRouters("pulsexV2"); // read-only verification of immutable config
 const router = await ethers.getContractAt("AffiliateRouter", "0x7872B42710294ce16fEA60575da45Fde51db78e8");
 
 // Address to recieve default fees if user is not referred
@@ -173,3 +142,6 @@ contracts/
 - **Workflow:** Branch, implement, run `npm run compile` (includes ABI sync), and open a PR when ready.
 - **Code style:** Follow existing Solidity patterns; keep comments concise and meaningful.
 - **Before review:** Document new scripts in this README and provide reproduction steps for regressions.
+
+
+

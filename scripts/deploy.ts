@@ -39,26 +39,6 @@ async function main() {
   // await SwapManager.connect(deployer).setAffiliateRouter(await AffiliateRouter.getAddress());
   // console.log("AffiliateRouter set")
 
-  // await waitFor(5);
-  // await executeTx(
-  //   SwapManager.connect(deployer).setDexRouters(
-  //     ["pulsexV1", "pulsexV2", "9inchV2", "9inchV3", "phux", "9mmV3", "9mmV2", "pulsexStable", "dexTop", "pDexV3", "tide"],
-  //     [
-  //       PulseXV1RouterAddress,
-  //       PulseXV2RouterAddress,
-  //       nineInchV2RouterAddress,
-  //       nineInchV3RouterAddress,
-  //       PhuxVaultAddress,
-  //       nineMMRouterAddress,
-  //       nineMMRouterAddress,
-  //       '0x0000000000000000000000000000000000000001',
-  //       dexTopRouterAddress,
-  //       pDexV3RouterAddress,
-  //       TideVaultAddress
-  //     ]
-  // ));
-  // console.log('DexRouters set')
-
   // const phiatAddress = "0x96E035ae0905EFaC8F733f133462f971Cfa45dB1"
   // const swapRoute: SwapManager.SwapRouteStruct = {
   // 	steps: [{

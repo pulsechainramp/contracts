@@ -460,6 +460,9 @@ contract SwapManager is Ownable, ReentrancyGuard {
         if (dexHash == DEX_HASH_PULSEX_V2) {
             return pulsexV2Router;
         }
+        if (dexHash == DEX_HASH_PULSEX_STABLE) {
+            return pulsexStablePool;
+        }
         return otherDexRouters[dexHash];
     }
 

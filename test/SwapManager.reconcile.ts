@@ -42,8 +42,7 @@ describe("SwapManager input reconciliation", () => {
       []
     );
     await swapManager.waitForDeployment();
-
-    await swapManager.connect(owner).setAffiliateRouter(await affiliateRouter.getAddress());
+    await swapManager.setAffiliateRouter(await affiliateRouter.getAddress());
 
     const amountIn = ethers.parseUnits("100", 18);
     const expectedStepAmount = ethers.parseUnits("1", 18);

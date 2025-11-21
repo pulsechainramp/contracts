@@ -21,6 +21,10 @@ contract MockSwapManager is ISwapManager {
         uint256 msgValue
     );
 
+    constructor(address _affiliateRouter) {
+        affiliateRouter = _affiliateRouter;
+    }
+
     function executeSwap(bytes calldata routeBytes) external payable override {
         SwapRoute memory route = abi.decode(routeBytes, (SwapRoute));
 
@@ -34,12 +38,13 @@ contract MockSwapManager is ISwapManager {
         emit SwapRecorded(msg.sender, route.destination, route.tokenIn, route.amountIn, msg.value);
     }
 
-    function setAffiliateRouter(address _affiliateRouter) external override {
-        affiliateRouter = _affiliateRouter;
-    }
-
     function dexRouters(string calldata) external pure override returns (address) {
         return address(0);
+    }
+
+    function setAffiliateRouter(address _affiliateRouter) external override {
+        affiliateRouter = _affiliateRouter;
+        emit AffiliateRouterSet(_affiliateRouter);
     }
 
     function weth() external pure override returns (IWETH9) {

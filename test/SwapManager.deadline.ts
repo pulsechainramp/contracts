@@ -47,6 +47,7 @@ describe("SwapManager deadlines", () => {
     await mockWeth.waitForDeployment();
 
     const SwapManager = await ethers.getContractFactory("SwapManager");
+    const [owner] = await ethers.getSigners();
     const swapManager = await SwapManager.deploy(
       await mockWeth.getAddress(),
       await pulsexV1Router.getAddress(),
@@ -56,8 +57,6 @@ describe("SwapManager deadlines", () => {
       []
     );
     await swapManager.waitForDeployment();
-
-    const [owner] = await ethers.getSigners();
     await swapManager.setAffiliateRouter(await owner.getAddress());
 
     const latestBlock = await ethers.provider.getBlock("latest");

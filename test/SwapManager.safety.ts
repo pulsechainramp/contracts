@@ -9,7 +9,7 @@ const encodeRoute = (route: any) => {
   return abiCoder.encode([routeType], [route]);
 };
 
-const deploySwapManager = async () => {
+const deploySwapManager = async (affiliateRouterAddress: string) => {
   const MockRouter = await ethers.getContractFactory("MockRouter");
   const pulsexV1Router = await MockRouter.deploy();
   await pulsexV1Router.waitForDeployment();
@@ -33,16 +33,15 @@ const deploySwapManager = async () => {
     []
   );
   await swapManager.waitForDeployment();
+  await swapManager.setAffiliateRouter(affiliateRouterAddress);
 
   return { swapManager, pulsexStablePool: pulsexStablePoolAddress };
 };
 
 describe("SwapManager safety guards", () => {
   it("rejects routes with zero amountOutMin", async () => {
-    const { swapManager } = await deploySwapManager();
-
     const [owner] = await ethers.getSigners();
-    await swapManager.setAffiliateRouter(await owner.getAddress());
+    const { swapManager } = await deploySwapManager(await owner.getAddress());
 
     const latestBlock = await ethers.provider.getBlock("latest");
     const deadline = BigInt((latestBlock?.timestamp ?? 0) + 3600);
@@ -78,10 +77,8 @@ describe("SwapManager safety guards", () => {
   });
 
   it("rejects routes that never produce the declared tokenOut", async () => {
-    const { swapManager } = await deploySwapManager();
-
     const [owner] = await ethers.getSigners();
-    await swapManager.setAffiliateRouter(await owner.getAddress());
+    const { swapManager } = await deploySwapManager(await owner.getAddress());
 
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     const tokenIn = await MockERC20.deploy("TokenIn", "TIN");
@@ -125,10 +122,8 @@ describe("SwapManager safety guards", () => {
   });
 
   it("rejects PulseX stable steps targeting unexpected pools", async () => {
-    const { swapManager } = await deploySwapManager();
-
     const [owner] = await ethers.getSigners();
-    await swapManager.setAffiliateRouter(await owner.getAddress());
+    const { swapManager } = await deploySwapManager(await owner.getAddress());
 
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     const tokenIn = await MockERC20.deploy("TokenIn", "TIN");
@@ -206,8 +201,7 @@ describe("SwapManager safety guards", () => {
       []
     );
     await swapManager.waitForDeployment();
-
-    await swapManager.connect(owner).setAffiliateRouter(await affiliateRouter.getAddress());
+    await swapManager.setAffiliateRouter(await affiliateRouter.getAddress());
 
     const amountIn = ethers.parseUnits("100", 18);
     const half = amountIn / 2n;

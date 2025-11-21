@@ -44,6 +44,12 @@ npm run compile
 | Key | Example | Required | Description |
 |---|---|:--:|---|
 | `PRIVATE_KEY` | `0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` | Yes* | Signer used when targeting `pulse`, `monad`, or `local` networks. |
+| `WETH_ADDRESS` | `0xA1077a294dDE1B09bB078844df40758a5D0f9a27` | No | WPLS/WETH address override. |
+| `PULSEX_V1_ROUTER` | `0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02` | No | PulseX V1 router override. |
+| `PULSEX_V2_ROUTER` | `0x165C3410fC91EF562C50559f7d2289fEbed552d9` | No | PulseX V2 router override. |
+| `PULSEX_STABLE_POOL` | `0xDA9aBA4eACF54E0273f56dfFee6B8F1e20B23Bba` | No | PulseX stable pool override. |
+| `OTHER_DEX_KEYS` | `phux,pulsexV2` | No | Comma-separated DEX keys for constructor config. |
+| `OTHER_DEX_ROUTER_ADDRESSES` | `0x...,0x...` | No | Comma-separated routers matching `OTHER_DEX_KEYS`. |
 
 > *Only needed outside the ephemeral Hardhat network. Keep funds on secure wallets.*
 
@@ -105,8 +111,8 @@ contracts/
 **Key scripts**
 | Script | What it does |
 |---|---|
-| `scripts/deploy-local.ts` | Deploys fresh SwapManager + AffiliateRouter instances on Hardhat and wires them together. |
-| `scripts/deploy.ts` | Reconfigures live contracts (set routers, approvals, helper workflows). |
+| `scripts/deploy-local.ts` | Deploys fresh SwapManager + AffiliateRouter on a target network and wires them via the one-time setter. |
+| `scripts/deploy.ts` | Deploys SwapManager + AffiliateRouter on a target network and wires them via the one-time setter. |
 | `scripts/util.ts` | Helper utilities for verification, swap route encoding, and transaction execution. |
 
 ## Architecture & Design
@@ -129,7 +135,7 @@ contracts/
 
 ## Deployment
 - **Environments:** `hardhat` (PulseChain fork), `local` (31337), `pulse` (369 mainnet), `monad` testnet (10143).
-- **Contracts:** Deploy `SwapManager` (passing the WPLS/WETH address) and then `AffiliateRouter` (passing the SwapManager address); wire them via `setAffiliateRouter`.
+- **Contracts:** Deploy `SwapManager` (passing the WPLS/WETH address and router config), then deploy `AffiliateRouter` with the SwapManager address; call the one-time `setAffiliateRouter` setter to bind them.
 - **Verification:** `npx hardhat verify --network pulse 0xE38490Fe9866889b24CA15EBdce6F6ED06f6E8c5`
 - **Post-deploy:** Update DEX router addresses and affiliate defaults via Hardhat console or `scripts/deploy.ts`.
 

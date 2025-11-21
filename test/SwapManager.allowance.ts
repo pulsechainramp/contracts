@@ -43,8 +43,7 @@ describe("SwapManager allowance handling", () => {
       []
     );
     await swapManager.waitForDeployment();
-
-    await swapManager.connect(owner).setAffiliateRouter(await owner.getAddress());
+    await swapManager.setAffiliateRouter(await owner.getAddress());
 
     const amountIn = ethers.parseUnits("100", 6);
     await tokenIn.mint(await owner.getAddress(), amountIn * 2n);

@@ -35,7 +35,7 @@ interface ISwapManager {
     }
 
     // Events
-    event AffiliateRouterSet(address indexed oldRouter, address indexed newRouter);
+    event AffiliateRouterSet(address indexed newRouter);
 
     // State variables
     function affiliateRouter() external view returns (address);
@@ -44,6 +44,5 @@ interface ISwapManager {
     // Functions
     function executeSwap(bytes calldata routeBytes) external payable;
     function setAffiliateRouter(address _affiliateRouter) external;
-
     function dexRouters(string calldata) external view returns (address);
 }

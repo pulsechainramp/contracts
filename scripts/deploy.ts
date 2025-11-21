@@ -59,7 +59,7 @@ async function main() {
     multicallAddress = await multicall.getAddress();
     console.log("Multicall deployed to:", multicallAddress);
   } else {
-    const deployedBytecode = await ethers.provider.getCode(desiredMulticallAddress!);
+    const deployedBytecode = existingCode;
     const { deployedBytecode: expectedRuntimeCode } = await artifacts.readArtifact("Multicall");
 
     if (

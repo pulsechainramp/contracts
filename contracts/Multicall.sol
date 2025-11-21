@@ -38,15 +38,17 @@ contract Multicall {
                 continue;
             }
 
-            bytes memory callData = calls[i].callData;
+            bytes calldata callData = calls[i].callData;
             require(callData.length >= 4 + 32, "Invalid callData length");
 
-            // Copy the encoded address parameter (skip selector)
-            bytes memory paramData = new bytes(callData.length - 4);
-            for (uint256 j = 0; j < paramData.length; j++) {
-                paramData[j] = callData[j + 4];
+            bytes4 selector;
+            assembly {
+                selector := calldataload(callData.offset)
             }
-            address account = abi.decode(paramData, (address));
+            require(selector == BALANCE_OF_SELECTOR, "Invalid selector for native balance");
+
+            // Decode the address parameter directly, skipping the selector
+            address account = abi.decode(callData[4:], (address));
             results[i] = Result({success: true, returnData: abi.encode(account.balance)});
         }
     }

@@ -22,6 +22,10 @@ async function main() {
       throw new Error(
         `MULTICALL_ADDRESS ${desiredAddress} has mismatched bytecode; unset env or deploy fresh.`
       );
+    } else {
+      console.warn(
+        `Warning: MULTICALL_ADDRESS ${desiredAddress} is set but no contract code exists at that address. Deploying a new Multicall at a new address.`
+      );
     }
   }
 

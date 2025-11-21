@@ -95,6 +95,7 @@ contract SwapManager is Ownable, ReentrancyGuard {
         pulsexV1Router = _pulsexV1Router;
         pulsexV2Router = _pulsexV2Router;
         pulsexStablePool = _pulsexStablePool;
+        affiliateRouter = address(0);
 
         _setInitialRouters(routerKeys, routerAddresses);
     }
@@ -245,6 +246,15 @@ contract SwapManager is Ownable, ReentrancyGuard {
         require(msg.sender == affiliateRouter, "Only affiliate router can call this function");
         SwapRoute memory route = abi.decode(routeBytes, (SwapRoute));
         _executeSwap(route);
+    }
+
+    event AffiliateRouterSet(address indexed newRouter);
+
+    function setAffiliateRouter(address _affiliateRouter) external onlyOwner {
+        require(_affiliateRouter != address(0), "Invalid affiliate router");
+        require(affiliateRouter == address(0), "Affiliate router already set");
+        affiliateRouter = _affiliateRouter;
+        emit AffiliateRouterSet(_affiliateRouter);
     }
 
     function _executeSwapStep(
@@ -499,10 +509,6 @@ contract SwapManager is Ownable, ReentrancyGuard {
         } else {
             IERC20(token).safeTransfer(destination, amount);
         }
-    }
-
-    function setAffiliateRouter(address _affiliateRouter) external onlyOwner {
-        affiliateRouter = _affiliateRouter;
     }
 
     receive() external payable {}

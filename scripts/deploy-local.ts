@@ -18,7 +18,6 @@ async function main() {
   console.log("Using PulseX V2 router:", pulsexV2Router);
   console.log("Using PulseX stable pool:", pulsexStablePool);
 
-  const SwapManagerFactory = await ethers.getContractFactory("SwapManager");
   const otherDexKeys = (process.env.OTHER_DEX_KEYS ?? "")
     .split(",")
     .map((value) => value.trim())
@@ -32,6 +31,7 @@ async function main() {
     throw new Error("OTHER_DEX_KEYS/OTHER_DEX_ROUTER_ADDRESSES must have matching counts");
   }
 
+  const SwapManagerFactory = await ethers.getContractFactory("SwapManager");
   const swapManager = await SwapManagerFactory.deploy(
     wethAddress,
     pulsexV1Router,
@@ -52,7 +52,7 @@ async function main() {
 
   const tx = await swapManager.setAffiliateRouter(affiliateRouterAddress);
   await tx.wait();
-  console.log("Affiliate router wired into SwapManager");
+  console.log("Affiliate router wired via one-time setter");
 }
 
 main().catch((error) => {

@@ -32,14 +32,12 @@ describe("AffiliateRouter promos", () => {
 
   const deployRouter = async () => {
     const MockSwapManager = await ethers.getContractFactory("MockSwapManager");
-    const mockSwapManager = await MockSwapManager.deploy();
+    const mockSwapManager = await MockSwapManager.deploy(ethers.ZeroAddress);
     await mockSwapManager.waitForDeployment();
 
     const AffiliateRouter = await ethers.getContractFactory("AffiliateRouter");
     const router = await AffiliateRouter.deploy(await mockSwapManager.getAddress());
     await router.waitForDeployment();
-
-    await mockSwapManager.setAffiliateRouter(await router.getAddress());
 
     return { router, mockSwapManager };
   };

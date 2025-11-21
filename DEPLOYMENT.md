@@ -42,6 +42,13 @@ Create a `.env` file with the following variables:
 
 ```bash
 PRIVATE_KEY=your_private_key_here
+# Optional overrides:
+# WETH_ADDRESS=0x...
+# PULSEX_V1_ROUTER=0x...
+# PULSEX_V2_ROUTER=0x...
+# PULSEX_STABLE_POOL=0x...
+# OTHER_DEX_KEYS=pulsexV2,phux
+# OTHER_DEX_ROUTER_ADDRESSES=0x...,0x...
 ```
 
 ### Dependencies
@@ -95,11 +102,12 @@ The SwapManager contract:
 - Initializes with WPLS address: `0xA1077a294dDE1B09bB078844df40758a5D0f9a27`
 - Implements reentrancy protection
 - Supports complex multi-step swap routing
+- Binds the AffiliateRouter post-deploy via a one-time `setAffiliateRouter` call.
 
 #### Deploy AffiliateRouter
 
 ```bash
-# Deploy AffiliateRouter with SwapManager reference
+# Deploy AffiliateRouter with SwapManager reference and bind once
 npx hardhat run scripts/deploy.ts --network pulse
 ```
 
@@ -120,14 +128,6 @@ const dexRouters = {
   "pDexV3": "0x1eC2eaA62117486c9b2a05F098a7bF2568e19204",
   "tide": "0x634F6B9Cd1f860314871548d2224362825384B2D"
 };
-```
-
-### Step 4: Set Affiliate Router
-
-Link the AffiliateRouter to SwapManager:
-
-```typescript
-await executeTx(SwapManager.connect(deployer).setAffiliateRouter(AffiliateRouterAddress));
 ```
 
 ## Contract Addresses
@@ -221,8 +221,8 @@ describe("SwapManager", () => {
     const privateKey = process.env.PRIVATE_KEY as string;
     const signer = new ethers.Wallet(privateKey, ethers.provider);
 
-    const SwapManagerAddress = "0x614Cc6667bD97367E01940eD6939cEA612a0c391";
-    const AffiliateRouterAddress = "0x85C4cF58F80d042A2f415343De69DB3B1D7A03a0";
+    const SwapManagerAddress = "0x72124aeC242C4655179aCBD4eB0237f15b0498B7";
+    const AffiliateRouterAddress = "0x72f1d19e38FBFCC085239D45fE563e81408afC78";
 
     const SwapManagerFactory = await ethers.getContractFactory("SwapManager", signer);
     const SwapManager = SwapManagerFactory.attach(SwapManagerAddress);

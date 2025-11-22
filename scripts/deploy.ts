@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { artifacts, ethers } from "hardhat";
 
 const DEFAULT_WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
 const DEFAULT_PULSEX_V1_ROUTER = "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02";
@@ -45,6 +45,36 @@ async function main() {
   await affiliateRouter.waitForDeployment();
   const affiliateRouterAddress = await affiliateRouter.getAddress();
   console.log("AffiliateRouter deployed to:", affiliateRouterAddress);
+
+  const MulticallFactory = await ethers.getContractFactory("Multicall");
+  const desiredMulticallAddress = process.env.MULTICALL_ADDRESS;
+  const existingCode = desiredMulticallAddress
+    ? await ethers.provider.getCode(desiredMulticallAddress)
+    : "0x";
+
+  let multicallAddress: string;
+  if (existingCode === "0x") {
+    const multicall = await MulticallFactory.deploy();
+    await multicall.waitForDeployment();
+    multicallAddress = await multicall.getAddress();
+    console.log("Multicall deployed to:", multicallAddress);
+  } else {
+    const deployedBytecode = existingCode;
+    const { deployedBytecode: expectedRuntimeCode } = await artifacts.readArtifact("Multicall");
+
+    if (
+      !expectedRuntimeCode ||
+      expectedRuntimeCode === "0x" ||
+      deployedBytecode.toLowerCase() !== expectedRuntimeCode.toLowerCase()
+    ) {
+      throw new Error(`Multicall bytecode mismatch at ${desiredMulticallAddress}; refusing to attach`);
+    }
+
+    const multicall = MulticallFactory.attach(desiredMulticallAddress!);
+    multicallAddress = await multicall.getAddress();
+    console.log("Using existing Multicall at:", multicallAddress);
+  }
+  console.log("Multicall bytecode check completed");
 
   const tx = await swapManager.setAffiliateRouter(affiliateRouterAddress);
   await tx.wait();

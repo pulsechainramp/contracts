@@ -62,6 +62,16 @@ npx hardhat run scripts/deploy.ts --network pulse
 npx hardhat console --network pulse
 ```
 
+### Deploy Multicall only
+
+To deploy or validate only the Multicall contract:
+
+```bash
+MULTICALL_ADDRESS=<optional existing address> npx hardhat run scripts/deployMulticall.ts --network pulse
+```
+
+If `MULTICALL_ADDRESS` is set and the on-chain bytecode matches the compiled Multicall, the script will reuse it; otherwise it deploys a fresh instance.
+
 ### Hardhat console snippets
 
 ```javascript

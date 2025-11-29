@@ -75,4 +75,13 @@ describe("SwapManager router administration", () => {
     await swapManager.connect(owner).setDexRouters(["phux"], [ethers.ZeroAddress]);
     expect(await swapManager.dexRouters("phux")).to.equal(ethers.ZeroAddress);
   });
+
+  it("rejects mismatched keys/routers lengths", async () => {
+    const [owner] = await ethers.getSigners();
+    const { swapManager } = await deploySwapManager();
+
+    await expect(
+      swapManager.connect(owner).setDexRouters(["phux", "pulsexV1"], [await owner.getAddress()])
+    ).to.be.revertedWith("Keys and routers length mismatch");
+  });
 });

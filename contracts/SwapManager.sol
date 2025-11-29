@@ -94,7 +94,7 @@ contract SwapManager is Ownable, ReentrancyGuard {
         pulsexStablePool = _pulsexStablePool;
         affiliateRouter = address(0);
 
-        _setInitialRouters(routerKeys, routerAddresses);
+        _setDexRouters(routerKeys, routerAddresses);
     }
 
     function dexRouters(string calldata key) external view returns (address) {
@@ -258,7 +258,7 @@ contract SwapManager is Ownable, ReentrancyGuard {
         string[] calldata keys,
         address[] calldata routers
     ) external onlyOwner {
-        _setInitialRouters(keys, routers);
+        _setDexRouters(keys, routers);
     }
 
     function _executeSwapStep(
@@ -452,13 +452,16 @@ contract SwapManager is Ownable, ReentrancyGuard {
         }
     }
 
-    function _setInitialRouters(
+    function _setDexRouters(
         string[] memory keys,
         address[] memory routers
     ) internal {
         require(keys.length == routers.length, "Keys and routers length mismatch");
         for (uint256 i = 0; i < keys.length; i++) {
             bytes32 dexHash = keccak256(bytes(keys[i]));
+            for (uint256 j = 0; j < i; j++) {
+                require(dexHash != keccak256(bytes(keys[j])), "Duplicate DEX key in call");
+            }
             address router = routers[i];
             if (dexHash == DEX_HASH_PULSEX_V1) {
                 pulsexV1Router = router;

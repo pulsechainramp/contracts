@@ -29,4 +29,20 @@ describe("AffiliateRouter swap manager admin", () => {
 
     expect(await affiliateRouter.swapManager()).to.equal(await newSwapManager.getAddress());
   });
+
+  it("rejects zero swapManager address", async () => {
+    const [owner] = await ethers.getSigners();
+
+    const MockSwapManager = await ethers.getContractFactory("MockSwapManager");
+    const initialSwapManager = await MockSwapManager.deploy(owner.address);
+    await initialSwapManager.waitForDeployment();
+
+    const AffiliateRouter = await ethers.getContractFactory("AffiliateRouter");
+    const affiliateRouter = await AffiliateRouter.deploy(await initialSwapManager.getAddress());
+    await affiliateRouter.waitForDeployment();
+
+    await expect(
+      affiliateRouter.connect(owner).setSwapManager(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid swap manager");
+  });
 });

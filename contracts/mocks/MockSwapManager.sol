@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/ISwapManager.sol";
 
-contract MockSwapManager is ISwapManager {
+contract MockSwapManager is ISwapManager, Ownable {
     address public override affiliateRouter;
-    address public owner;
     mapping(string => address) private dexRouterMap;
 
     address public lastDestination;
@@ -23,8 +23,7 @@ contract MockSwapManager is ISwapManager {
         uint256 msgValue
     );
 
-    constructor(address _affiliateRouter) {
-        owner = msg.sender;
+    constructor(address _affiliateRouter) Ownable(msg.sender) {
         affiliateRouter = _affiliateRouter;
     }
 
@@ -59,11 +58,6 @@ contract MockSwapManager is ISwapManager {
             dexRouterMap[keys[i]] = routers[i];
             emit DexRouterSet(keys[i], routers[i]);
         }
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
     }
 
     function weth() external pure override returns (IWETH9) {

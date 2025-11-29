@@ -39,6 +39,10 @@ describe("AffiliateRouter promos", () => {
     const router = await AffiliateRouter.deploy(await mockSwapManager.getAddress());
     await router.waitForDeployment();
 
+    const [owner] = await ethers.getSigners();
+    await router.connect(owner).setReferralCreationFee(0);
+    await router.connect(owner).setDefaultReferrer(ethers.ZeroAddress);
+
     return { router, mockSwapManager };
   };
 
@@ -260,7 +264,7 @@ describe("AffiliateRouter promos", () => {
     const { router } = await deployRouter();
     const [owner, , , user] = await ethers.getSigners();
 
-    await expect(router.connect(owner).setMaxPromoBps(40)).to.be.revertedWith("Invalid promo cap");
+    await expect(router.connect(owner).setMaxPromoBps(9)).to.be.revertedWith("Invalid promo cap");
 
     await expect(router.connect(owner).setMaxPromoBps(150))
       .to.emit(router, "MaxPromoBpsUpdated")

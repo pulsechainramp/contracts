@@ -5,6 +5,8 @@ import "../interfaces/ISwapManager.sol";
 
 contract MockSwapManager is ISwapManager {
     address public override affiliateRouter;
+    address public owner;
+    mapping(string => address) private dexRouterMap;
 
     address public lastDestination;
     address public lastTokenIn;
@@ -22,6 +24,7 @@ contract MockSwapManager is ISwapManager {
     );
 
     constructor(address _affiliateRouter) {
+        owner = msg.sender;
         affiliateRouter = _affiliateRouter;
     }
 
@@ -38,13 +41,29 @@ contract MockSwapManager is ISwapManager {
         emit SwapRecorded(msg.sender, route.destination, route.tokenIn, route.amountIn, msg.value);
     }
 
-    function dexRouters(string calldata) external pure override returns (address) {
-        return address(0);
+    function dexRouters(string calldata key) external view override returns (address) {
+        return dexRouterMap[key];
     }
 
-    function setAffiliateRouter(address _affiliateRouter) external override {
+    function setAffiliateRouter(address _affiliateRouter) external override onlyOwner {
         affiliateRouter = _affiliateRouter;
         emit AffiliateRouterSet(_affiliateRouter);
+    }
+
+    function setDexRouters(
+        string[] calldata keys,
+        address[] calldata routers
+    ) external override onlyOwner {
+        require(keys.length == routers.length, "Keys and routers length mismatch");
+        for (uint256 i = 0; i < keys.length; i++) {
+            dexRouterMap[keys[i]] = routers[i];
+            emit DexRouterSet(keys[i], routers[i]);
+        }
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
     }
 
     function weth() external pure override returns (IWETH9) {

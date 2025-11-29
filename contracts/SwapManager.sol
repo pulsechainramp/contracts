@@ -33,9 +33,9 @@ contract SwapManager is Ownable, ReentrancyGuard {
 
     // Non-PulseX router addresses keyed by dex hash
     mapping(bytes32 => address) private otherDexRouters;
-    address public immutable pulsexV1Router;
-    address public immutable pulsexV2Router;
-    address public immutable pulsexStablePool;
+    address public pulsexV1Router;
+    address public pulsexV2Router;
+    address public pulsexStablePool;
     address public affiliateRouter;
     IWETH9 public immutable weth;
 
@@ -87,9 +87,6 @@ contract SwapManager is Ownable, ReentrancyGuard {
         address[] memory routerAddresses
     ) Ownable(msg.sender) {
         require(_weth != address(0), "Invalid WETH address");
-        require(_pulsexV1Router != address(0), "Invalid PulseX V1 router");
-        require(_pulsexV2Router != address(0), "Invalid PulseX V2 router");
-        require(_pulsexStablePool != address(0), "Invalid PulseX stable pool");
 
         weth = IWETH9(_weth);
         pulsexV1Router = _pulsexV1Router;
@@ -249,12 +246,19 @@ contract SwapManager is Ownable, ReentrancyGuard {
     }
 
     event AffiliateRouterSet(address indexed newRouter);
+    event DexRouterSet(string indexed key, address router);
 
     function setAffiliateRouter(address _affiliateRouter) external onlyOwner {
         require(_affiliateRouter != address(0), "Invalid affiliate router");
-        require(affiliateRouter == address(0), "Affiliate router already set");
         affiliateRouter = _affiliateRouter;
         emit AffiliateRouterSet(_affiliateRouter);
+    }
+
+    function setDexRouters(
+        string[] calldata keys,
+        address[] calldata routers
+    ) external onlyOwner {
+        _setInitialRouters(keys, routers);
     }
 
     function _executeSwapStep(
@@ -455,11 +459,21 @@ contract SwapManager is Ownable, ReentrancyGuard {
         require(keys.length == routers.length, "Keys and routers length mismatch");
         for (uint256 i = 0; i < keys.length; i++) {
             bytes32 dexHash = keccak256(bytes(keys[i]));
-            require(!_isPulseXHash(dexHash), "PulseX routers are immutable");
             address router = routers[i];
-            require(router != address(0), "Router cannot be zero");
-            require(otherDexRouters[dexHash] == address(0), "Duplicate DEX key");
-            otherDexRouters[dexHash] = router;
+            if (dexHash == DEX_HASH_PULSEX_V1) {
+                pulsexV1Router = router;
+            } else if (dexHash == DEX_HASH_PULSEX_V2) {
+                pulsexV2Router = router;
+            } else if (dexHash == DEX_HASH_PULSEX_STABLE) {
+                pulsexStablePool = router;
+            } else {
+                if (router == address(0)) {
+                    delete otherDexRouters[dexHash];
+                } else {
+                    otherDexRouters[dexHash] = router;
+                }
+            }
+            emit DexRouterSet(keys[i], router);
         }
     }
 
@@ -474,14 +488,6 @@ contract SwapManager is Ownable, ReentrancyGuard {
             return pulsexStablePool;
         }
         return otherDexRouters[dexHash];
-    }
-
-    function _isPulseXHash(bytes32 dexHash) internal pure returns (bool) {
-        return (
-            dexHash == DEX_HASH_PULSEX_V1 ||
-            dexHash == DEX_HASH_PULSEX_V2 ||
-            dexHash == DEX_HASH_PULSEX_STABLE
-        );
     }
 
     function _trackToken(

@@ -49,6 +49,7 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
     uint8 public constant PROMO_SWAP_COUNT = 3;
     
     // Events
+    event SwapManagerUpdated(address indexed newSwapManager);
     event ReferralRegistered(address indexed user, address indexed referrer);
     event ReferralBound(address indexed user, address indexed referrer, uint256 boundAt, uint16 promoBps);
     event PromoConsumed(address indexed user, address indexed referrer, uint8 remaining);
@@ -92,6 +93,12 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
         referralFeeRecipient = payable(msg.sender);
         maxPromoBps = PROMO_CAP_MAX_BPS;
         tailBps = DEFAULT_TAIL_BPS;
+    }
+
+    function setSwapManager(address _swapManager) external onlyOwner {
+        require(_swapManager != address(0), "Invalid swap manager");
+        swapManager = ISwapManager(_swapManager);
+        emit SwapManagerUpdated(_swapManager);
     }
     
     /**

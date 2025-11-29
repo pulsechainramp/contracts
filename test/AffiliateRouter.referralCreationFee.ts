@@ -40,16 +40,16 @@ const deployRouter = async () => {
 };
 
 describe("AffiliateRouter referral creation fee gate", () => {
-  it("starts with zero fee, updated defaults, and rejects pay attempts while disabled", async () => {
+  it("starts with default dev fee/recipient and enforces exact payment", async () => {
     const { router } = await deployRouter();
     const [, user] = await ethers.getSigners();
 
     expect(await router.defaultFeeBasisPoints()).to.equal(100);
-    expect(await router.referralCreationFee()).to.equal(0);
-    expect(await router.referralFeeRecipient()).to.equal(await router.owner());
+    expect(await router.referralCreationFee()).to.equal(ethers.parseEther("369"));
+    expect(await router.referralFeeRecipient()).to.equal("0x137e0A3205023f78535Ed303DAED89FCde8d87c2");
 
     await expect(router.connect(user).payReferralCreationFee({ value: 0 })).to.be.revertedWith(
-      "Referral creation fee disabled"
+      "Insufficient referral creation fee"
     );
     expect(await router.hasPaidReferralCreationFee(await user.getAddress())).to.equal(false);
   });
@@ -62,7 +62,7 @@ describe("AffiliateRouter referral creation fee gate", () => {
 
     await expect(router.connect(owner).setReferralCreationFee(fee))
       .to.emit(router, "ReferralCreationFeeUpdated")
-      .withArgs(0, fee);
+      .withArgs(ethers.parseEther("369"), fee);
 
     await expect(router.connect(owner).setReferralFeeRecipient(await treasury.getAddress()))
       .to.emit(router, "ReferralFeeRecipientUpdated")

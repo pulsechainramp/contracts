@@ -41,14 +41,18 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
     mapping(address => bool) public referralCreationFeePaid;
     address payable public referralFeeRecipient;
     uint256 public constant MAX_REFERRAL_CREATION_FEE = 100_000 ether;
-    uint16 public constant PROMO_CAP_MIN_BPS = 100; // 1.0%
+    uint16 public constant PROMO_CAP_MIN_BPS = 10; // 0.1%
     uint16 public constant PROMO_CAP_MAX_BPS = 300; // 3.0%
     uint16 public constant DEFAULT_TAIL_BPS = 100; // 1.0%
+    uint16 public constant TAIL_MIN_BPS = 10; // 0.1%
+    uint16 public constant TAIL_MAX_BPS = 100; // 1.0%
+    address public constant DEFAULT_DEV_REFERRER = 0x137e0A3205023f78535Ed303DAED89FCde8d87c2;
     uint16 public maxPromoBps;
     uint16 public tailBps;
     uint8 public constant PROMO_SWAP_COUNT = 3;
     
     // Events
+    event SwapManagerUpdated(address indexed newSwapManager);
     event ReferralRegistered(address indexed user, address indexed referrer);
     event ReferralBound(address indexed user, address indexed referrer, uint256 boundAt, uint16 promoBps);
     event PromoConsumed(address indexed user, address indexed referrer, uint8 remaining);
@@ -58,10 +62,12 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
     event ReferralFeeAdded(address user, address referrer, address token, uint256 amount);
     event ReferralFeeAmountUpdated(address referrer, address token, uint256 amount);
     event DefaultReferrerUpdated(address indexed referrer, uint256 feeBasisPoints);
+    event DefaultReferrerFeeUpdated(uint256 feeBasisPoints);
     event ReferralCreationFeePaid(address indexed payer, uint256 amount);
     event ReferralCreationFeeUpdated(uint256 oldFee, uint256 newFee);
     event ReferralFeeRecipientUpdated(address indexed newRecipient);
     event MaxPromoBpsUpdated(uint16 newMaxPromoBps);
+    event TailBpsUpdated(uint16 newTailBps);
 
     // Modifiers
     modifier onlyValidReferrer(address referrer) {
@@ -86,12 +92,18 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
         swapManager = ISwapManager(_swapManager);
         defaultFeeBasisPoints = 100; // 1.0%
         totalBasisPoints = 10000; // 100%
-        defaultReferrer = address(0);
+        defaultReferrer = DEFAULT_DEV_REFERRER;
         defaultReferrerBasisPoints = 100; // 1.0%
-        referralCreationFee = 0;
-        referralFeeRecipient = payable(msg.sender);
+        referralCreationFee = 369 ether;
+        referralFeeRecipient = payable(DEFAULT_DEV_REFERRER);
         maxPromoBps = PROMO_CAP_MAX_BPS;
         tailBps = DEFAULT_TAIL_BPS;
+    }
+
+    function setSwapManager(address _swapManager) external onlyOwner {
+        require(_swapManager != address(0), "Invalid swap manager");
+        swapManager = ISwapManager(_swapManager);
+        emit SwapManagerUpdated(_swapManager);
     }
     
     /**
@@ -384,6 +396,19 @@ contract AffiliateRouter is Ownable, ReentrancyGuard {
     function setDefaultReferrer(address _defaultReferrer) external onlyOwner {
         defaultReferrer = _defaultReferrer;
         emit DefaultReferrerUpdated(_defaultReferrer, defaultReferrerBasisPoints);
+    }
+
+    function setDefaultReferrerBasisPoints(uint16 newFeeBps) external onlyOwner {
+        require(newFeeBps >= TAIL_MIN_BPS && newFeeBps <= TAIL_MAX_BPS, "Invalid default referrer fee");
+        defaultReferrerBasisPoints = newFeeBps;
+        emit DefaultReferrerFeeUpdated(newFeeBps);
+        emit DefaultReferrerUpdated(defaultReferrer, newFeeBps);
+    }
+
+    function setTailBps(uint16 newTailBps) external onlyOwner {
+        require(newTailBps >= TAIL_MIN_BPS && newTailBps <= TAIL_MAX_BPS, "Invalid tail cap");
+        tailBps = newTailBps;
+        emit TailBpsUpdated(newTailBps);
     }
 
     function payReferralCreationFee() external payable nonReentrant {

@@ -47,7 +47,7 @@ npm run compile
 | `WETH_ADDRESS` | `0xA1077a294dDE1B09bB078844df40758a5D0f9a27` | No | WPLS/WETH address override. |
 | `PULSEX_V1_ROUTER` | `0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02` | No | PulseX V1 router override. |
 | `PULSEX_V2_ROUTER` | `0x165C3410fC91EF562C50559f7d2289fEbed552d9` | No | PulseX V2 router override. |
-| `PULSEX_STABLE_POOL` | `0xDA9aBA4eACF54E0273f56dfFee6B8F1e20B23Bba` | No | PulseX stable pool override. |
+| `PULSEX_STABLE_POOL` | `0xE3acFA6C40d53C3faf2aa62D0a715C737071511c ` | No | PulseX stable pool override. |
 | `OTHER_DEX_KEYS` | `phux,pulsexV2` | No | Comma-separated DEX keys for constructor config. |
 | `OTHER_DEX_ROUTER_ADDRESSES` | `0x...,0x...` | No | Comma-separated routers matching `OTHER_DEX_KEYS`. |
 

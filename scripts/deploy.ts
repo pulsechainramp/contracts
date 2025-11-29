@@ -3,7 +3,7 @@ import { artifacts, ethers } from "hardhat";
 const DEFAULT_WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
 const DEFAULT_PULSEX_V1_ROUTER = "0x98bf93ebf5c380C0e6Ae8e192A7e2AE08edAcc02";
 const DEFAULT_PULSEX_V2_ROUTER = "0x165C3410fC91EF562C50559f7d2289fEbed552d9";
-const DEFAULT_PULSEX_STABLE_POOL = "0xDA9aBA4eACF54E0273f56dfFee6B8F1e20B23Bba";
+const DEFAULT_PULSEX_STABLE_POOL = "0xE3acFA6C40d53C3faf2aa62D0a715C737071511c";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -30,15 +30,34 @@ async function main() {
   const SwapManagerFactory = await ethers.getContractFactory("SwapManager");
   const swapManager = await SwapManagerFactory.deploy(
     wethAddress,
-    pulsexV1Router,
-    pulsexV2Router,
-    pulsexStablePool,
-    otherDexKeys,
-    otherDexRouters
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    [],
+    []
   );
   await swapManager.waitForDeployment();
   const swapManagerAddress = await swapManager.getAddress();
   console.log("SwapManager deployed to:", swapManagerAddress);
+
+  const routerKeys: string[] = [];
+  const routerAddresses: string[] = [];
+  const pushRouter = (key: string, address: string | undefined) => {
+    if (!address || address === "") return;
+    routerKeys.push(key);
+    routerAddresses.push(address);
+  };
+
+  pushRouter("pulsexV1", pulsexV1Router);
+  pushRouter("pulsexV2", pulsexV2Router);
+  pushRouter("pulsexStable", pulsexStablePool);
+  otherDexKeys.forEach((key, idx) => pushRouter(key, otherDexRouters[idx]));
+
+  if (routerKeys.length > 0) {
+    const txRouters = await swapManager.setDexRouters(routerKeys, routerAddresses);
+    await txRouters.wait();
+    console.log("Routers configured via setDexRouters");
+  }
 
   const AffiliateRouterFactory = await ethers.getContractFactory("AffiliateRouter");
   const affiliateRouter = await AffiliateRouterFactory.deploy(swapManagerAddress);
@@ -78,7 +97,7 @@ async function main() {
 
   const tx = await swapManager.setAffiliateRouter(affiliateRouterAddress);
   await tx.wait();
-  console.log("Affiliate router wired via one-time setter");
+  console.log("Affiliate router wired");
 }
 
 main().catch((error) => {

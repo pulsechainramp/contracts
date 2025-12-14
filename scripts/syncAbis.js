@@ -7,7 +7,7 @@
  * script which bundles both steps.
  */
 
-const { copyFileSync, existsSync, mkdirSync } = require("fs");
+const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require("fs");
 const { dirname, resolve } = require("path");
 
 const ROOT = resolve(__dirname, "..");
@@ -37,6 +37,44 @@ const contractsToSync = [
       resolve(ROOT, "..", "routing-api", "src", "abis", "AffiliateRouter.json"),
     ],
   },
+  {
+    artifact: resolve(ROOT, "abis", "Hex.json"),
+    targets: [
+      resolve(ROOT, "..", "aggregator-frontend", "src", "abis", "Hex.json"),
+      resolve(ROOT, "..", "routing-api", "src", "abis", "Hex.json"),
+    ],
+  },
+];
+
+const helpersToSync = [
+  {
+    source: resolve(ROOT, "src", "networks", "hex.ts"),
+    target: resolve(
+      ROOT,
+      "..",
+      "aggregator-frontend",
+      "src",
+      "features",
+      "hexStaking",
+      "hexNetwork.ts"
+    ),
+  },
+  {
+    source: resolve(ROOT, "src", "hex.ts"),
+    target: resolve(
+      ROOT,
+      "..",
+      "aggregator-frontend",
+      "src",
+      "features",
+      "hexStaking",
+      "hexClient.ts"
+    ),
+    rewrites: [
+      { from: '../abis/Hex.json', to: '../../abis/Hex.json' },
+      { from: './networks/hex', to: './hexNetwork' },
+    ],
+  },
 ];
 
 function ensureFileExists(path) {
@@ -59,6 +97,18 @@ function syncAbi({ artifact, targets }) {
 
 function main() {
   contractsToSync.forEach(syncAbi);
+  helpersToSync.forEach(({ source, target, rewrites }) => {
+    ensureFileExists(source);
+    mkdirSync(dirname(target), { recursive: true });
+    let content = readFileSync(source, "utf8");
+    if (Array.isArray(rewrites)) {
+      rewrites.forEach(({ from, to }) => {
+        content = content.replace(new RegExp(from, "g"), to);
+      });
+    }
+    writeFileSync(target, content);
+    console.log(`Synced helper from ${source} -> ${target}`);
+  });
 }
 
 main();
